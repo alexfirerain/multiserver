@@ -29,14 +29,19 @@ public class Server {
     }
 
     public void operate() {
+        System.out.println("OPERATING");
         try (final var serverSocket = new ServerSocket(SERVER_PORT)) {
             while (true) {
                 try (final var socket = serverSocket.accept()) {
-                    connections.execute(new Connection(socket, this));
-
+                    Connection nextConnect = new Connection(socket, this);
+                    connections.execute(nextConnect);
+                } catch (IOException e) {
+                    System.out.println("CONNECT ERROR");
+                    e.printStackTrace();
                 }
             }
         } catch (IOException e) {
+            System.out.println("OPERATE_ERROR");
             e.printStackTrace();
         }
     }

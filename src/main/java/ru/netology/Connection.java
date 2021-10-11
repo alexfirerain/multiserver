@@ -21,13 +21,12 @@ public class Connection implements Runnable {
 
     @Override
     public void run() {
+        System.out.println("RUNNING");
         while (true) {
             try (
                     final var in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                     final var out = new BufferedOutputStream(socket.getOutputStream())
             ) {
-                // read only request line for simplicity
-                // must be in form GET /path HTTP/1.1
                 final var requestLine = in.readLine();
                 final var parts = requestLine.split(" ");
 
@@ -51,6 +50,7 @@ public class Connection implements Runnable {
                 respond(path, out);
 
             } catch (IOException e) {
+                System.out.println("REQUEST_ERROR");
                 e.printStackTrace();
             }
         }
