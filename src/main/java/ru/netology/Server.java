@@ -2,6 +2,7 @@ package ru.netology;
 
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.net.Socket;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -32,13 +33,9 @@ public class Server {
         System.out.println("OPERATING");
         try (final var serverSocket = new ServerSocket(SERVER_PORT)) {
             while (true) {
-                try (final var socket = serverSocket.accept()) {
+                    final var socket = serverSocket.accept();
                     Connection nextConnect = new Connection(socket, this);
                     connections.execute(nextConnect);
-                } catch (IOException e) {
-                    System.out.println("CONNECT ERROR");
-                    e.printStackTrace();
-                }
             }
         } catch (IOException e) {
             System.out.println("OPERATE_ERROR");

@@ -21,39 +21,35 @@ public class Connection implements Runnable {
 
     @Override
     public void run() {
-        System.out.println("RUNNING");
-        while (true) {
-            try (
-                    final var in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                    final var out = new BufferedOutputStream(socket.getOutputStream())
-            ) {
+        System.out.println("RUNNING @ " + socket.getRemoteSocketAddress());
+            try (final var in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                 final var out = new BufferedOutputStream(socket.getOutputStream()))
+            {
                 final var requestLine = in.readLine();
                 final var parts = requestLine.split(" ");
 
                 if (parts.length != 3) {
                     // just close socket
-                    continue;
+                    return;
                 }
 
                 final var path = parts[1];
                 if (!isValidPath(path)) {
                     deny(out);
-                    continue;
+                    return;
                 }
 
                 // special case for classic
                 if (path.equals("/classic.html")) {
                     classicResponse(path, out);
-                    continue;
+                    return;
                 }
 
                 respond(path, out);
 
-            } catch (IOException e) {
-                System.out.println("REQUEST_ERROR");
+        } catch (IOException e) {
                 e.printStackTrace();
             }
-        }
     }
 
     private void deny(BufferedOutputStream out) throws IOException {
