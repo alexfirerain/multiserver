@@ -14,13 +14,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class Server {
-    public static final String ERROR_MSG =
-            """
-                    HTTP/1.1 404 Not Found\r
-                    Content-Length: 0\r
-                    Connection: close\r
-                    \r
-                    """;
 
     public final List<String> validPaths;
     public final String PUBLIC_DIR;
@@ -33,20 +26,18 @@ public class Server {
     }
 
     public void listen(int port) {
-        System.out.println("LISTENING");
         try (final var serverSocket = new ServerSocket(port)) {
             while (true) {
                     final var socket = serverSocket.accept();
                     connections.submit(() -> handleConnection(socket));
             }
         } catch (IOException e) {
-            System.out.println("LISTEN_ERROR");
             e.printStackTrace();
         }
     }
 
     private void handleConnection(Socket socket) {
-        System.out.println("HANDLING " + socket.getRemoteSocketAddress());
+//        System.out.println("HANDLING " + socket.getRemoteSocketAddress());
             try (   socket;
                     final var in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                     final var out = new BufferedOutputStream(socket.getOutputStream())
