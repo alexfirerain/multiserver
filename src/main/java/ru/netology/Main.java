@@ -1,5 +1,6 @@
 package ru.netology;
 
+import java.io.BufferedOutputStream;
 import java.util.List;
 
 public class Main {
@@ -13,6 +14,15 @@ public class Main {
 
   public static void main(String[] args) {
     Server server = new Server(POOL_SIZE, validPaths, PUBLIC_DIR);
+
+    // добавление обработчиков
+    server.addHandler("GET", "/messages", (request, responseStream) -> {
+      // TODO: handlers code
+    });
+    server.addHandler("POST", "/messages", (request, responseStream) -> {
+      // TODO: handlers code
+    });
+
     server.listen(SERVER_PORT);
   }
 }

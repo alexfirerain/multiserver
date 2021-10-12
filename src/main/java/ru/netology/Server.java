@@ -105,6 +105,9 @@ public class Server {
                 e.printStackTrace();
             }
     }
+
+    public void addHandler(String method, String paths, Handler handler) {
+    }
 }
 
 
