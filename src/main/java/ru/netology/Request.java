@@ -36,7 +36,6 @@ public class Request {
         final var parts = requestLine.split(" ");
 
         if (parts.length != 3) {
-            // just close socket
             throw new IOException("Invalid request");
         }
 
@@ -51,7 +50,7 @@ public class Request {
             var headerValue = line.substring(i + 2);
             headers.put(headerName, headerValue);
         }
-        // виртуальное тело запроса
+        // запрос с виртуальным телом
         return new Request(method, path, headers, inputStream);
     }
 

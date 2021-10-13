@@ -48,15 +48,15 @@ public class Server {
                 var request = Request.fromInputStream(in);
                 final var path = request.getPath();
 
+
+
                 if (!validPaths.contains(path)) {
-                    out.write((
-                            """
-                                    HTTP/1.1 404 Not Found\r
-                                    Content-Length: 0\r
-                                    Connection: close\r
-                                    \r
-                                    """
-                    ).getBytes());
+                    out.write(("""
+                            HTTP/1.1 404 Not Found\r
+                            Content-Length: 0\r
+                            Connection: close\r
+                            \r
+                            """).getBytes());
                     out.flush();
                     return;
                 }
@@ -103,7 +103,10 @@ public class Server {
             }
     }
 
-    public void addHandler(String method, String paths, Handler handler) {
+    // повторные назначения переписывают прежние
+    public void addHandler(String method, String path, Handler handler) {
+            handlers.putIfAbsent(method, new ConcurrentHashMap<>());
+            handlers.get(method).put(path, handler);
     }
 }
 
