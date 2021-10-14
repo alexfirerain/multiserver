@@ -13,6 +13,8 @@ public class Request {
     private final Map<String, String> headers;
     private final InputStream in;
 
+    private final String defaultPath = "/index.html";   // начальный путь
+
     private Request(String method, String path, Map<String, String> headers, InputStream in) {
         this.method = method;
         this.path = path;
@@ -22,11 +24,21 @@ public class Request {
 
     @Override
     public String toString() {
-        return "Request{" +
-                "method='" + method + '\'' +
-                ", path='" + path + '\'' +
-                ", headers=" + headers +
-                '}';
+        StringBuilder desc = new StringBuilder((
+                "\tЗАПРОС:%n" +
+                "метод\t=\t%s%n" +
+                "путь\t=\t%s%n" +
+                "\tзаголовки:%n")
+                .formatted(method, path));
+
+        for (Map.Entry<String, String> header : headers.entrySet())
+            desc
+                .append(header.getKey())
+                .append("\t=\t")
+                .append(header.getValue())
+                .append("\n");
+
+        return desc.append("\n").toString();
     }
 
     public static Request fromInputStream(InputStream inputStream) throws IOException {
@@ -59,7 +71,8 @@ public class Request {
     }
 
     public String getPath() {
-        return path;
+        return "".equals(path) || "/".equals(path) ?        // чтобы пустой путь вёл на начальную
+                defaultPath : path;
     }
 
     public Map<String, String> getHeaders() {

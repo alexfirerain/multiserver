@@ -1,30 +1,22 @@
 package ru.netology;
 
-import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class Server {
-
-    public final List<String> validPaths;
-    public final String PUBLIC_DIR;
+    private String public_dir;
     private final ExecutorService connections;
     private final Map<String, Map<String, Handler>> handlers = new ConcurrentHashMap<>();
 
-    public Server(int poolSize, List<String> validPaths, String public_dir) {
-        this.validPaths = validPaths;
-        PUBLIC_DIR = public_dir;
+    public Server(int poolSize, String public_dir) {
+        this.public_dir = public_dir;
         connections = Executors.newFixedThreadPool(poolSize);
     }
 
@@ -35,6 +27,7 @@ public class Server {
                     connections.submit(() -> handleConnection(socket));
             }
         } catch (IOException e) {
+            System.out.println("Прослушивание порта завершилось: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -45,69 +38,89 @@ public class Server {
                  final var in = socket.getInputStream();
                  final var out = socket.getOutputStream())
             {
-                var request = Request.fromInputStream(in);
+                final var request = Request.fromInputStream(in);
+
+                System.out.println(request);
+
+                final var method = request.getMethod();
                 final var path = request.getPath();
 
+                System.out.println(path);
 
+                // запрос GET по неспецифицированному пути (поведение по умолчанию)
+                if ("GET".equals(method) && handlers.get(method).get(path) == null) {
+                      final var filePath = Path.of(".", public_dir, path);
 
-                if (!validPaths.contains(path)) {
-                    out.write(("""
-                            HTTP/1.1 404 Not Found\r
-                            Content-Length: 0\r
-                            Connection: close\r
-                            \r
-                            """).getBytes());
-                    out.flush();
+                      if (Files.isRegularFile(filePath)) {
+                            generalHandler.handle(request, out);
+                      } else {
+                            notFoundHandler.handle(request, out);
+                      }
+                }
+
+                // неизвестный метод
+                if (handlers.get(method) == null) {
+                    notImplementedHandler.handle(request, out);
                     return;
                 }
 
-                final var filePath = Path.of(".", "public", path);
-                final var mimeType = Files.probeContentType(filePath);
+                // обработка по методу и пути из библиотеки
+                handlers.get(method).get(path).handle(request, out);
 
-                // special case for classic
-                if (path.equals("/classic.html")) {
-                    final var template = Files.readString(filePath);
-                    final var content = template.replace(
-                            "{time}",
-                            LocalDateTime.now().toString()
-                    ).getBytes();
-                    out.write((
-                            ("""
-                                    HTTP/1.1 200 OK\r
-                                    Content-Type: %s\r
-                                    Content-Length: %d\r
-                                    Connection: close\r
-                                    \r
-                                    """).formatted(mimeType, content.length)
-                    ).getBytes());
-                    out.write(content);
-                    out.flush();
-                    return;
-                }
 
-                final var length = Files.size(filePath);
-                out.write((
-                        ("""
-                                HTTP/1.1 200 OK\r
-                                Content-Type: %s\r
-                                Content-Length: %d\r
-                                Connection: close\r
-                                \r
-                                """).formatted(mimeType, length)
-                ).getBytes());
-                Files.copy(filePath, out);
-                out.flush();
             } catch (IOException e) {
                 System.out.println("HANDLE_ERROR");
                 e.printStackTrace();
             }
     }
 
-    // повторные назначения переписывают прежние
+    // универсальный отдатчик файла
+    public final Handler generalHandler = (request, responseStream) -> {
+        final var filePath = Path.of(".", public_dir, request.getPath());
+        responseStream.write((
+                ("""
+                        HTTP/1.1 200 OK\r
+                        Content-Type: %s\r
+                        Content-Length: %d\r
+                        Connection: close\r
+                        \r
+                        """).formatted(Files.probeContentType(filePath),
+                                            Files.size(filePath))
+        ).getBytes());
+        Files.copy(filePath, responseStream);
+        responseStream.flush();
+    };
+
+    // добавлялка в библиотеку: повторные назначения переписывают прежние
     public void addHandler(String method, String path, Handler handler) {
             handlers.putIfAbsent(method, new ConcurrentHashMap<>());
             handlers.get(method).put(path, handler);
     }
+
+    public final Handler notFoundHandler = (request, responseStream) -> {
+        responseStream.write(("""
+                            HTTP/1.1 404 Not Found\r
+                            Content-Length: 0\r
+                            Connection: close\r
+                            \r
+                            """).getBytes());
+        responseStream.flush();
+    };
+
+    private final Handler notImplementedHandler = (request, responseStream) -> {
+        responseStream.write(("""
+                            HTTP/1.1 501 Not Implemented\r
+                            Content-Length: 0\r
+                            Connection: close\r
+                            \r
+                            """).getBytes());
+        responseStream.flush();
+    };
+
+    public String getPublic_dir() {
+        return public_dir;
+    }
+
 }
 
 
