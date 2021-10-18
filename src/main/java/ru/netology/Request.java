@@ -31,19 +31,18 @@ public class Request {
 
     @Override
     public String toString() {
-        StringBuilder desc = new StringBuilder((
-                "\tЗАПРОС:%n" +
-                        "метод\t=\t%s%n" +
-                        "путь\t=\t%s%n" +
-                        "\tзаголовки:%n")
-                .formatted(method, path));
+        StringBuilder desc = new StringBuilder(
+                        ("""
+                                \tЗАПРОС:
+                                метод\t=\t%s
+                                путь\t=\t%s
+                                \tзаголовки:
+                                """).formatted(method, path));
 
         for (Map.Entry<String, String> header : headers.entrySet())
             desc
-                    .append(header.getKey())
-                    .append("\t=\t")
-                    .append(header.getValue())
-                    .append("\n");
+                .append(header.getKey()).append("\t=\t")
+                .append(header.getValue()).append("\n");
 
         return desc.append("\n").toString();
     }
@@ -61,7 +60,8 @@ public class Request {
         final var requestLine = in.readLine();
         final var parts = requestLine.split(" ");
 
-        if (parts.length != 3) {
+        if (parts.length != 3 ||
+                !parts[1].startsWith("/")) {
             throw new IOException("Invalid request");
         }
 
@@ -109,5 +109,20 @@ public class Request {
 
     public InputStream getIn() {
         return in;
+    }
+
+    // from google guava with modifications
+    @SuppressWarnings("GrazieInspection")
+    private static int indexOf(byte[] array, byte[] target, int start, int max) {
+        outer:
+        for (int i = start; i < max - target.length + 1; i++) {
+            for (int j = 0; j < target.length; j++) {
+                if (array[i + j] != target[j]) {
+                    continue outer;
+                }
+            }
+            return i;
+        }
+        return -1;
     }
 }

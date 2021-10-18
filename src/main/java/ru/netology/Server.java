@@ -1,10 +1,12 @@
 package ru.netology;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -20,6 +22,9 @@ public class Server {
      * Библиотека обработчиков по методу и ресурсу.
      */
     private final Map<String, Map<String, Handler>> handlers = new ConcurrentHashMap<>();
+    public static final String GET = "GET";
+    public static final String POST = "POST";
+    public static final List<String> allowedMethods = List.of(GET, POST);
 
     /**
      * Создаёт новый Сервер с указанной степенью параллельности и значением публичной директории.
@@ -61,25 +66,28 @@ public class Server {
         try (socket;
              final var in = socket.getInputStream();
              final var out = socket.getOutputStream()) {
+
             final var request = Request.fromInputStream(in);
             final var method = request.getMethod();
             final var path = request.getPath();
 
             // запрос GET по неспецифицированному пути (поведение по умолчанию)
-            if ("GET".equals(method) && handlers.get(method).get(path) == null) {
+            if ("GET".equals(method) &&
+                    !isSpecified(method, path)) {
 
                 final var filePath = Path.of(".", public_dir, path);
 
                 if (Files.isRegularFile(filePath)) {
                     generalHandler.handle(request, out);
                 } else {
-                    notFoundHandler.handle(request, out);
+                    notFoundResponse(out);
                 }
             }
 
             // неизвестный метод
-            if (handlers.get(method) == null) {
-                notImplementedHandler.handle(request, out);
+            if (handlers.get(method) == null &&
+                    !isAllowed(method)) {
+                notImplementedResponse(out);
                 return;
             }
 
@@ -88,14 +96,63 @@ public class Server {
 
         } catch (IOException e) {
             try {
-                serverErrorHandler.handle(Request.DEFAULT, socket.getOutputStream());
+                System.out.println("HANDLE_ERROR");
+                e.printStackTrace();
+                if ("Invalid request".equals(e.getMessage())) {
+                    badRequest(socket.getOutputStream());
+                } else {
+                    serverErrorResponse(socket.getOutputStream());
+                }
             } catch (IOException ex) {
                 System.out.println("ERROR_RESPONSE_ERROR");
                 ex.printStackTrace();
             }
-            System.out.println("HANDLE_ERROR");
-            e.printStackTrace();
         }
+    }
+
+    /**
+     * Стандартный обработчик ошибки сервера.
+     * @param out   куда слать.
+     * @throws IOException  при невозможности отослать.
+     */
+    private void serverErrorResponse(OutputStream out) throws IOException {
+        out.write(("""
+                HTTP/1.1 500 Internal Server Error\r
+                Content-Length: 0\r
+                Connection: close\r
+                \r
+                """).getBytes());
+        out.flush();
+    }
+
+    /**
+     * Стандартный обработчик неимплементированного метода.
+     * @param out   куда слать.
+     * @throws IOException  при невозможности отослать.
+     */
+    private void notImplementedResponse(OutputStream out) throws IOException {
+        out.write(("""
+                HTTP/1.1 501 Not Implemented\r
+                Content-Length: 0\r
+                Connection: close\r
+                \r
+                """).getBytes());
+        out.flush();
+    }
+
+    /**
+     * Стандартный обработчик отсутствующего ресурса.
+     * @param out   кому слать.
+     * @throws IOException при невозможности отослать.
+     */
+    private void notFoundResponse(OutputStream out) throws IOException {
+        out.write(("""
+                HTTP/1.1 404 Not Found\r
+                Content-Length: 0\r
+                Connection: close\r
+                \r
+                """).getBytes());
+        out.flush();
     }
 
     /**
@@ -127,44 +184,31 @@ public class Server {
         handlers.get(method).put(path, handler);
     }
 
-    /**
-     * Стандартный обработчик отсутствующего ресурса.
-     */
-    public final Handler notFoundHandler = (request, responseStream) -> {
-        responseStream.write(("""
-                HTTP/1.1 404 Not Found\r
-                Content-Length: 0\r
-                Connection: close\r
-                \r
-                """).getBytes());
-        responseStream.flush();
-    };
 
     /**
-     * Стандартный обработчик неимплементированного метода.
+     * Стандартный обработчик некорректного запроса.
+     * @param out   куда отсылать ответ.
+     * @throws IOException при невозможности нормально отослать.
      */
-    private final Handler notImplementedHandler = (request, responseStream) -> {
-        responseStream.write(("""
-                HTTP/1.1 501 Not Implemented\r
-                Content-Length: 0\r
-                Connection: close\r
-                \r
-                """).getBytes());
-        responseStream.flush();
-    };
+    private static void badRequest(OutputStream out) throws IOException {
+        out.write((
+                """
+                        HTTP/1.1 400 Bad Request\r
+                        Content-Length: 0\r
+                        Connection: close\r
+                        \r
+                        """
+        ).getBytes());
+        out.flush();
+    }
 
-    /**
-     * Стандартный обработчик ошибки сервера.
-     */
-    private final Handler serverErrorHandler = (request, responseStream) -> {
-        responseStream.write(("""
-                HTTP/1.1 500 Internal Server Error\r
-                Content-Length: 0\r
-                Connection: close\r
-                \r
-                """).getBytes());
-        responseStream.flush();
-    };
+    private boolean isSpecified(String method, String path) {
+        return handlers.get(method).get(path) != null;
+    }
+
+    private boolean isAllowed(String method) {
+        return allowedMethods.contains(method);
+    }
 
     public String getPublic_dir() {
         return public_dir;
