@@ -52,10 +52,6 @@ public class Main2 {
                     System.out.println(method);
 
                     final var path = requestLine[1];
-                    if (!path.startsWith("/")) {
-                        badRequest(out);
-                        continue;
-                    }
                     System.out.println(path);
 
                     // ищем заголовки
