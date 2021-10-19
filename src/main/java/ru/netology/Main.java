@@ -41,15 +41,17 @@ public class Main {
             final var filePath = Path.of(".", server.getPublic_dir(), request.getPath());
             final var mimeType = Files.probeContentType(filePath);
             final var template = Files.readString(filePath);
-            final var content = template.replace(
+            final byte[] content = request.getQueryParams().isPresent() ?
+                    template.replace(
                     "{authorization}",
                     String.format(
-                    """
-                            Принят логин: %s
-                            Принят пароль: %s
-                            """, request.getQueryParam("login")[0],
-                                 request.getQueryParam("password")[0])
-            ).getBytes();
+                            """
+                                    Принят логин: %s
+                                    Принят пароль: %s
+                                    """, request.getQueryParam("login")[0],
+                            request.getQueryParam("password")[0])
+            ).getBytes() :
+                    template.getBytes();
 
             responseStream.write((
                     ("""

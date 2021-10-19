@@ -50,10 +50,11 @@ public class Request {
                 .append(header.getKey()).append("\t=\t")
                 .append(header.getValue()).append("\n");
 
-        for (Map.Entry<String, List<String>> query : queryParams.entrySet()) {
+        if (queryParams != null && !queryParams.isEmpty()) {
             desc.append("\tПараметры запроса:\n");
-            for (String value : query.getValue())
-                desc.append(query.getKey()).append(" = ").append(value).append("\n");
+            for (Map.Entry<String, List<String>> query : queryParams.entrySet())
+                for (String value : query.getValue())
+                    desc.append(query.getKey()).append(" = ").append(value).append("\n");
         }
 
         return desc.append("\n").toString();

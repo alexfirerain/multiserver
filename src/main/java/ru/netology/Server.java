@@ -205,7 +205,8 @@ public class Server {
     }
 
     private boolean isSpecified(String method, String path) {
-        return handlers.get(method).get(path) != null;
+        return handlers.get(method) != null &&
+                handlers.get(method).get(path) != null;
     }
 
     private boolean isAllowed(String method) {

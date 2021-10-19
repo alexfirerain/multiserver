@@ -73,7 +73,7 @@ public class Main2 {
                     System.out.println(headers);
 
                     // для GET тела нет
-                    if (!method.equals(GET)) {
+                    if (!method.equals(GET)) {  
                         in.skip(headersDelimiter.length);
                         // вычитываем Content-Length, чтобы прочитать body
                         final var contentLength = extractHeader(headers, "Content-Length");
@@ -82,6 +82,8 @@ public class Main2 {
                             final var bodyBytes = in.readNBytes(length);
 
                             final var body = new String(bodyBytes);
+                            // распечатывает строку, полученную из байтов входного потока, которые
+                            // начинаются после разделителя заголовков и длятся столько, если
                             System.out.println(body);
                         }
                     }
