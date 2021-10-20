@@ -1,5 +1,7 @@
 package ru.netology;
 
+import java.io.IOException;
+import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -9,6 +11,7 @@ public class Main {
     public static final int POOL_SIZE = 64;
     public static final String PUBLIC_DIR = "public";
     public static final int SERVER_PORT = 9999;
+    public static final String HOSTNAME = "localhost";
 
     public static void main(String[] args) {
         Server server = new Server(POOL_SIZE, PUBLIC_DIR, SERVER_PORT);
@@ -78,10 +81,17 @@ public class Main {
             if ("stop".equalsIgnoreCase(scanner.nextLine()))
                 break;
 
-        System.out.println("STOPPING");
-        server.stopServer();
-        System.out.println("SHUTTING");
+            // можно добавить установку порта с консоли или даже запуск с параметрами
+            // тогда класс Main превращается в оболочку для управления сервером
+
+
         server.interrupt();
+        // виртуальное подключение к серверу, чтобы разблокировать его ожидание на порту
+        try {
+            new Socket(HOSTNAME, SERVER_PORT).close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
 

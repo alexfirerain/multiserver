@@ -16,19 +16,18 @@ import java.util.concurrent.Executors;
  * Слушает подключения и обрабатывает HTTP-запросы.
  */
 public class Server extends Thread {
-    private String public_dir;
-    private final ExecutorService connections;
-    private int server_port = 9999;         // на всякий значение по умолчанию
+    public static final String GET = "GET";
+    public static final String POST = "POST";
+    public static final List<String> allowedMethods = List.of(GET, POST);
 
+    private final ExecutorService connections;
     /**
      * Библиотека обработчиков по методу и ресурсу.
      */
     private final Map<String, Map<String, Handler>> handlers = new ConcurrentHashMap<>();
+    private String public_dir;
 
-    public static final String GET = "GET";
-    public static final String POST = "POST";
-    public static final List<String> allowedMethods = List.of(GET, POST);
-    private boolean isOn;
+    private int server_port = 9999;         // на всякий значение по умолчанию
 
     /**
      * Создаёт новый Сервер с указанной степенью параллельности и значением публичной директории.
@@ -61,9 +60,8 @@ public class Server extends Thread {
      */
     @Override
     public void run() {
-        isOn = true;
         try (final var serverSocket = new ServerSocket(server_port)) {
-            while (isOn) {
+            while (!interrupted()) {
                 final var socket = serverSocket.accept();
                 connections.submit(() -> handleConnection(socket));
             }
@@ -71,12 +69,7 @@ public class Server extends Thread {
             System.out.println("Прослушивание порта завершилось: " + e.getMessage());
             e.printStackTrace();
         }
-        connections.shutdown();
-        isOn = false;
-    }
-
-    public void stopServer() {
-        isOn = false;
+            connections.shutdownNow();
     }
 
     /**
@@ -124,7 +117,7 @@ public class Server extends Thread {
                 System.out.println("HANDLE_ERROR");
                 e.printStackTrace();
                 if ("Invalid request".equals(e.getMessage())) {
-                    badRequest(socket.getOutputStream());
+                    badRequestResponse(socket.getOutputStream());
                 } else {
                     serverErrorResponse(socket.getOutputStream());
                 }
@@ -215,7 +208,7 @@ public class Server extends Thread {
      * @param out   куда отсылать ответ.
      * @throws IOException при невозможности нормально отослать.
      */
-    private static void badRequest(OutputStream out) throws IOException {
+    private static void badRequestResponse(OutputStream out) throws IOException {
         out.write((
                 """
                         HTTP/1.1 400 Bad Request\r
