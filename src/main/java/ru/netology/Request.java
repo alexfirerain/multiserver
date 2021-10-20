@@ -32,7 +32,7 @@ public class Request {
         this.queryParams = queryParams;
         this.headers = headers;
         this.in = in;
-        System.out.println(this);
+        System.out.println(this);           // мониторинг
     }
 
     @Override

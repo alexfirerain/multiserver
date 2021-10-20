@@ -3,6 +3,7 @@ package ru.netology;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.Scanner;
 
 public class Main {
     public static final int POOL_SIZE = 64;
@@ -10,7 +11,7 @@ public class Main {
     public static final int SERVER_PORT = 9999;
 
     public static void main(String[] args) {
-        Server server = new Server(POOL_SIZE, PUBLIC_DIR);
+        Server server = new Server(POOL_SIZE, PUBLIC_DIR, SERVER_PORT);
 
         // обработчик "классики"
         server.addHandler("GET", "/classic.html", (request, responseStream) -> {
@@ -50,9 +51,8 @@ public class Main {
             final byte[] content = template.replace(
                     "{authorization}",
                     String.format("""
-                                    <br/>
-                                    Принят логин: %s
-                                    Принят пароль: %s
+                                    <br/>Принят логин: %s
+                                    <br/>Принят пароль: %s
                                 """, request.getQueryParam("login")[0],
                                      request.getQueryParam("password")[0])
                     ).getBytes();
@@ -71,7 +71,17 @@ public class Main {
             responseStream.flush();
         });
 
-        server.listen(SERVER_PORT);
+        server.start();
+
+        Scanner scanner = new Scanner(System.in);
+        while (true)
+            if ("stop".equalsIgnoreCase(scanner.nextLine()))
+                break;
+
+        System.out.println("STOPPING");
+        server.stopServer();
+        System.out.println("SHUTTING");
+        server.interrupt();
     }
 }
 

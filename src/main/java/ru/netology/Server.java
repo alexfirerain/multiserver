@@ -15,16 +15,20 @@ import java.util.concurrent.Executors;
 /**
  * Слушает подключения и обрабатывает HTTP-запросы.
  */
-public class Server {
+public class Server extends Thread {
     private String public_dir;
     private final ExecutorService connections;
+    private int server_port = 9999;         // на всякий значение по умолчанию
+
     /**
      * Библиотека обработчиков по методу и ресурсу.
      */
     private final Map<String, Map<String, Handler>> handlers = new ConcurrentHashMap<>();
+
     public static final String GET = "GET";
     public static final String POST = "POST";
     public static final List<String> allowedMethods = List.of(GET, POST);
+    private boolean isOn;
 
     /**
      * Создаёт новый Сервер с указанной степенью параллельности и значением публичной директории.
@@ -38,14 +42,28 @@ public class Server {
     }
 
     /**
+     * Создаёт новый Сервер с указанной степенью параллельностью и серверным портом,
+     * а также с указанной папкой ресурсов.
+     * @param poolSize     максимальное количество одновременно обрабатываемых потоков.
+     * @param public_dir   расположение папки с ресурсами.
+     * @param server_port  номер порта, на котором будет слушать.
+     */
+    public Server(int poolSize, String public_dir, int server_port) {
+        this.public_dir = public_dir;
+        connections = Executors.newFixedThreadPool(poolSize);
+        this.server_port = server_port;
+    }
+
+    /**
      * Начинает слушать входящие подключения на указанном порту.
      * В случае ошибки потока или соединения сообщает об этом в консоль.
      *
-     * @param port прослушиваемый порт.
      */
-    public void listen(int port) {
-        try (final var serverSocket = new ServerSocket(port)) {
-            while (true) {
+    @Override
+    public void run() {
+        isOn = true;
+        try (final var serverSocket = new ServerSocket(server_port)) {
+            while (isOn) {
                 final var socket = serverSocket.accept();
                 connections.submit(() -> handleConnection(socket));
             }
@@ -53,6 +71,12 @@ public class Server {
             System.out.println("Прослушивание порта завершилось: " + e.getMessage());
             e.printStackTrace();
         }
+        connections.shutdown();
+        isOn = false;
+    }
+
+    public void stopServer() {
+        isOn = false;
     }
 
     /**
@@ -216,6 +240,9 @@ public class Server {
         return public_dir;
     }
 
+    public void setServer_port(int server_port) {
+        this.server_port = server_port;
+    }
 }
 
 
