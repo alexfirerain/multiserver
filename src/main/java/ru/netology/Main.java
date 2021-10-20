@@ -38,20 +38,24 @@ public class Main {
         // обработчик "формы"
         server.addHandler("GET", "/forms.html", (request, responseStream) ->{
 
+            if (!request.hasQueryParams()) {
+                server.generalHandler.handle(request, responseStream);
+                return;
+            }
+
             final var filePath = Path.of(".", server.getPublic_dir(), request.getPath());
             final var mimeType = Files.probeContentType(filePath);
             final var template = Files.readString(filePath);
-            final byte[] content = request.getQueryParams().isPresent() ?
-                    template.replace(
+
+            final byte[] content = template.replace(
                     "{authorization}",
-                    String.format(
-                            """
+                    String.format("""
+                                    <br/>
                                     Принят логин: %s
                                     Принят пароль: %s
-                                    """, request.getQueryParam("login")[0],
-                            request.getQueryParam("password")[0])
-            ).getBytes() :
-                    template.getBytes();
+                                """, request.getQueryParam("login")[0],
+                                     request.getQueryParam("password")[0])
+                    ).getBytes();
 
             responseStream.write((
                     ("""
@@ -62,6 +66,7 @@ public class Main {
                             \r
                             """).formatted(mimeType, content.length)
             ).getBytes());
+
             responseStream.write(content);
             responseStream.flush();
         });

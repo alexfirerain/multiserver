@@ -185,4 +185,7 @@ public class Request {
         return originalPath;
     }
 
+    public boolean hasQueryParams() {
+        return queryParams != null && !queryParams.isEmpty();
+    }
 }

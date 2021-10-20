@@ -62,14 +62,13 @@ public class Server {
      * @param socket обрабатываемое подключение.
      */
     private void handleConnection(Socket socket) {
-        System.out.println("HANDLING " + socket.getRemoteSocketAddress());
+        System.out.println("HANDLING " + socket.getRemoteSocketAddress());  // мониторинг
         try (socket;
              final var in = socket.getInputStream();
              final var out = socket.getOutputStream()) {
 
 
             final var request = Request.fromInputStream(in);
-            System.out.println(request);
             final var method = request.getMethod();
             final var path = request.getPath();
 
