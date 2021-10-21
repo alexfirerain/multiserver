@@ -33,20 +33,20 @@ public class Main2 {
                     final var requestLineDelimiter = new byte[]{'\r', '\n'};
                     final var requestLineEnd = indexOf(buffer, requestLineDelimiter, 0, read);
                     if (requestLineEnd == -1) {
-                        badRequest(out);
+//                        badRequest(out);
                         continue;
                     }
 
                     // читаем request line
                     final var requestLine = new String(Arrays.copyOf(buffer, requestLineEnd)).split(" ");
                     if (requestLine.length != 3) {
-                        badRequest(out);
+//                        badRequest(out);
                         continue;
                     }
 
                     final var method = requestLine[0];
                     if (!allowedMethods.contains(method)) {
-                        badRequest(out);
+//                        badRequest(out);
                         continue;
                     }
                     System.out.println(method);
@@ -59,7 +59,7 @@ public class Main2 {
                     final var headersStart = requestLineEnd + requestLineDelimiter.length;
                     final var headersEnd = indexOf(buffer, headersDelimiter, headersStart, read);
                     if (headersEnd == -1) {
-                        badRequest(out);
+//                        badRequest(out);
                         continue;
                     }
 
@@ -70,21 +70,17 @@ public class Main2 {
 
                     final var headersBytes = in.readNBytes(headersEnd - headersStart);
                     final var headers = Arrays.asList(new String(headersBytes).split("\r\n"));
-                    System.out.println(headers);
 
-                    // для GET тела нет
-                    if (!method.equals(GET)) {  
+                    // читаем тело
+                    String body = "";
+                    if (!method.equals(GET)) {
                         in.skip(headersDelimiter.length);
                         // вычитываем Content-Length, чтобы прочитать body
                         final var contentLength = extractHeader(headers, "Content-Length");
                         if (contentLength.isPresent()) {
                             final var length = Integer.parseInt(contentLength.get());
                             final var bodyBytes = in.readNBytes(length);
-
-                            final var body = new String(bodyBytes);
-                            // распечатывает строку, полученную из байтов входного потока, которые
-                            // начинаются после разделителя заголовков и длятся столько, если
-                            System.out.println(body);
+                            body = new String(bodyBytes);
                         }
                     }
 
@@ -112,17 +108,6 @@ public class Main2 {
                 .findFirst();
     }
 
-    private static void badRequest(BufferedOutputStream out) throws IOException {
-        out.write((
-                """
-                        HTTP/1.1 400 Bad Request\r
-                        Content-Length: 0\r
-                        Connection: close\r
-                        \r
-                        """
-        ).getBytes());
-        out.flush();
-    }
 
     // from google guava with modifications
     @SuppressWarnings("GrazieInspection")

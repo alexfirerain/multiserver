@@ -1,9 +1,6 @@
 package ru.netology;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -68,22 +65,22 @@ public class Request {
      * @throws IOException при проблемах со связью или при нерабочем запросе.
      */
     public static Request fromInputStream(InputStream inputStream) throws IOException {
-        var in = new BufferedReader(new InputStreamReader(inputStream));
+        final var in = new BufferedInputStream(inputStream);
+        in.mark(limit);
+        final var buffer = new byte[limit];
+        final var read = in.read(buffer);
+        final var requestLineDelimiter = new byte[]{'\r', '\n'};
 
-        final var requestLine = in.readLine();
-        final var requestParts = requestLine.split(" ");
+        final var requestLineEnd = indexOf(buffer, requestLineDelimiter, 0, read);
+        if (requestLineEnd == -1) throw new IOException("Invalid request");
+        final var requestLine = new String(Arrays.copyOf(buffer, requestLineEnd)).split(" ");
+        if (requestLine.length != 3) throw new IOException("Invalid request");
 
-        if (requestParts.length != 3 ||
-                !requestParts[1].startsWith("/")) {
-            throw new IOException("Invalid request");
-        }
-
-        final var method = requestParts[0];
-        final var originalPath = requestParts[1];
-
-        Map<String, List<String>> params = new HashMap<>();
+        final var method = requestLine[0];
+        final var originalPath = requestLine[1];
 
         final String path;
+        Map<String, List<String>> params = new HashMap<>();
         if (!originalPath.contains("?")) {
             path = originalPath;
             params = null;
@@ -100,15 +97,47 @@ public class Request {
                 params.get(name).add(value);
             }
         }
-
-        String line;
+//        final var requestLine = in.readLine();
+//        final var requestParts = requestLine.split(" ");
+//        if (requestParts.length != 3 ||
+//                !requestParts[1].startsWith("/")) {
+//            throw new IOException("Invalid request");
+//        }
+//        final var method = requestParts[0];
+//        final var originalPath = requestParts[1];
+        final var headersDelimiter = new byte[]{'\r', '\n', '\r', '\n'};
+        final var headersStart = requestLineEnd + requestLineDelimiter.length;
+        final var headersEnd = indexOf(buffer, headersDelimiter, headersStart, read);
+        if (headersEnd == -1) throw new IOException("Invalid request");
+        in.reset();
+        in.skip(headersStart);
+        final var headersBytes = in.readNBytes(headersEnd - headersStart);
+        final var headerPairs = new String(headersBytes).split("\r\n");
         Map<String, String> headers = new HashMap<>();
-        while (!(line = in.readLine()).isBlank()) {
+        for (String line : headerPairs) {
             var i = line.indexOf(":");
             var headerName = line.substring(0, i);
             var headerValue = line.substring(i + 2);
             headers.put(headerName, headerValue);
         }
+
+        // читаем тело
+        String body = "";
+        if (!method.equals("GET")) {
+            in.skip(headersDelimiter.length);
+            // вычитываем Content-Length, чтобы прочитать body
+            final var contentLength = Optional.of(headers.get("Content-Length"));
+            if (contentLength.isPresent()) {
+                final var length = Integer.parseInt(contentLength.get());
+                final var bodyBytes = in.readNBytes(length);
+                body = new String(bodyBytes);
+            }
+        }
+
+        // TODO: получим параметры из запроса, если они в теле
+
+
+
         // запрос с виртуальным телом
         return new Request(method, originalPath, path, params, headers, inputStream);
     }
@@ -165,6 +194,15 @@ public class Request {
         return Optional.of(queryParams);
     }
 
+
+
+    private static Optional<String> extractHeader(List<String> headers, String header) {
+        return headers.stream()
+                .filter(o -> o.startsWith(header))
+                .map(o -> o.substring(o.indexOf(" ")))
+                .map(String::trim)
+                .findFirst();
+    }
 
     // from google guava with modifications
     @SuppressWarnings("GrazieInspection")
