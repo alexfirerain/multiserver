@@ -85,13 +85,15 @@ public class Main {
             // тогда класс Main превращается в оболочку для управления сервером
 
 
-        server.interrupt();
-        // виртуальное подключение к серверу, чтобы разблокировать его ожидание на порту
-        try {
-            new Socket(HOSTNAME, SERVER_PORT).close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        server.stopServer();
+//        server.interrupt();
+//        // виртуальное подключение к серверу, чтобы разблокировать его ожидание на порту
+//        try {
+//            Socket virtual = new Socket(HOSTNAME, SERVER_PORT);
+//            virtual.close();
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
     }
 }
 

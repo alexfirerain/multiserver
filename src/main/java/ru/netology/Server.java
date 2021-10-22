@@ -19,6 +19,7 @@ public class Server extends Thread {
     public static final String GET = "GET";
     public static final String POST = "POST";
     public static final List<String> allowedMethods = List.of(GET, POST);
+    private static final String HOSTNAME = "localhost";
 
     private final ExecutorService connections;
     /**
@@ -131,7 +132,7 @@ public class Server extends Thread {
     /**
      * Стандартный обработчик ошибки сервера.
      * @param out   куда слать.
-     * @throws IOException  при невозможности отослать.
+     * @throws IOException при невозможности отослать.
      */
     private void serverErrorResponse(OutputStream out) throws IOException {
         out.write(("""
@@ -235,6 +236,16 @@ public class Server extends Thread {
 
     public void setServer_port(int server_port) {
         this.server_port = server_port;
+    }
+
+    public void stopServer() {
+        interrupt();
+        // виртуальное подключение к серверу, чтобы разблокировать его ожидание на порту
+        try {
+            new Socket(HOSTNAME, server_port).close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
 

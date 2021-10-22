@@ -17,18 +17,18 @@ public class Request {
     private final String path;
     private final Map<String, List<String>> queryParams;
     private final Map<String, String> headers;
-    private final InputStream in;
+    private final String body;
 
     private static final String defaultPath = "/index.html";   // начальный путь
     private static final int limit = 4096;
 
-    private Request(String method, String originalPath, String path, Map<String, List<String>> queryParams, Map<String, String> headers, InputStream in) {
+    private Request(String method, String originalPath, String path, Map<String, List<String>> queryParams, Map<String, String> headers, String body) {
         this.method = method;
         this.originalPath = originalPath;
         this.path = path;
         this.queryParams = queryParams;
         this.headers = headers;
-        this.in = in;
+        this.body = body;
         System.out.println(this);           // мониторинг
     }
 
@@ -39,7 +39,7 @@ public class Request {
                                 \tЗАПРОС:
                                 метод\t=\t%s
                                 путь\t=\t%s
-                                \tзаголовки:
+                                \tЗаголовки:
                                 """).formatted(method, path));
 
         for (Map.Entry<String, String> header : headers.entrySet())
@@ -52,6 +52,10 @@ public class Request {
             for (Map.Entry<String, List<String>> query : queryParams.entrySet())
                 for (String value : query.getValue())
                     desc.append(query.getKey()).append(" = ").append(value).append("\n");
+        }
+
+        if (!body.isBlank()) {
+            desc.append("\tТело:\n").append(body);
         }
 
         return desc.append("\n").toString();
@@ -72,12 +76,17 @@ public class Request {
         final var requestLineDelimiter = new byte[]{'\r', '\n'};
 
         final var requestLineEnd = indexOf(buffer, requestLineDelimiter, 0, read);
-        if (requestLineEnd == -1) throw new IOException("Invalid request");
-        final var requestLine = new String(Arrays.copyOf(buffer, requestLineEnd)).split(" ");
-        if (requestLine.length != 3) throw new IOException("Invalid request");
+//        System.out.println("requestLineEnd = " + requestLineEnd + "\nbufferLength = " + read); // мониторинг
+        if (requestLineEnd == -1 && read > 0) {
+            throw new IOException("Invalid request");
+        }
+        final var requestLineParts = new String(Arrays.copyOf(buffer, requestLineEnd)).split(" ");
+        if (requestLineParts.length != 3) {
+            throw new IOException("Invalid request");
+        }
 
-        final var method = requestLine[0];
-        final var originalPath = requestLine[1];
+        final var method = requestLineParts[0];
+        final var originalPath = requestLineParts[1];
 
         final String path;
         Map<String, List<String>> params = new HashMap<>();
@@ -97,14 +106,7 @@ public class Request {
                 params.get(name).add(value);
             }
         }
-//        final var requestLine = in.readLine();
-//        final var requestParts = requestLine.split(" ");
-//        if (requestParts.length != 3 ||
-//                !requestParts[1].startsWith("/")) {
-//            throw new IOException("Invalid request");
-//        }
-//        final var method = requestParts[0];
-//        final var originalPath = requestParts[1];
+
         final var headersDelimiter = new byte[]{'\r', '\n', '\r', '\n'};
         final var headersStart = requestLineEnd + requestLineDelimiter.length;
         final var headersEnd = indexOf(buffer, headersDelimiter, headersStart, read);
@@ -139,7 +141,7 @@ public class Request {
 
 
         // запрос с виртуальным телом
-        return new Request(method, originalPath, path, params, headers, inputStream);
+        return new Request(method, originalPath, path, params, headers, body);
     }
 
     public String getMethod() {
@@ -169,8 +171,8 @@ public class Request {
         return defaultPath;
     }
 
-    public InputStream getIn() {
-        return in;
+    public String getBody() {
+        return body;
     }
 
 
