@@ -85,52 +85,52 @@ public class Request {
             throw new IOException("Invalid request");
         }
 
-        final var method = requestLineParts[0];
-        final var originalPath = requestLineParts[1];
+        final var requestMethod = requestLineParts[0];
+        final var requestOriginalPath = requestLineParts[1];
 
-        final String path;
-        Map<String, List<String>> params = new HashMap<>();
-        if (!originalPath.contains("?")) {
-            path = originalPath;
-            params = null;
+        final String requestPath;
+        Map<String, List<String>> requestParams = new HashMap<>();
+        if (!requestOriginalPath.contains("?")) {
+            requestPath = requestOriginalPath;
         } else {
-            int queryIndex = originalPath.indexOf("?");
-            path = originalPath.substring(0, queryIndex);
-            final var queries = originalPath.substring(queryIndex + 1);
+            int queryIndex = requestOriginalPath.indexOf("?");
+            requestPath = requestOriginalPath.substring(0, queryIndex);
+            final var queryString = requestOriginalPath.substring(queryIndex + 1);
 
-            for (String line : queries.split("&")) {
+            for (String line : queryString.split("&")) {
                 int delimiterIndex = line.indexOf("=");
                 String name = URLDecoder.decode(line.substring(0, delimiterIndex), StandardCharsets.UTF_8);
                 String value = URLDecoder.decode(line.substring(delimiterIndex + 1), StandardCharsets.UTF_8);
-                params.putIfAbsent(name, new ArrayList<>());
-                params.get(name).add(value);
+                requestParams.putIfAbsent(name, new ArrayList<>());
+                requestParams.get(name).add(value);
             }
         }
 
         final var headersDelimiter = new byte[]{'\r', '\n', '\r', '\n'};
         final var headersStart = requestLineEnd + requestLineDelimiter.length;
         final var headersEnd = indexOf(buffer, headersDelimiter, headersStart, read);
-        if (headersEnd == -1) throw new IOException("Invalid request");
+        if (headersEnd == -1) {
+            throw new IOException("Invalid request");
+        }
         in.reset();
         in.skip(headersStart);
         final var headersBytes = in.readNBytes(headersEnd - headersStart);
         final var headerPairs = new String(headersBytes).split("\r\n");
-        Map<String, String> headers = new HashMap<>();
+        Map<String, String> requestHeaders = new HashMap<>();
         for (String line : headerPairs) {
             var i = line.indexOf(":");
             var headerName = line.substring(0, i);
             var headerValue = line.substring(i + 2);
-            headers.put(headerName, headerValue);
+            requestHeaders.put(headerName, headerValue);
         }
 
         // читаем тело
         String body = "";
-        if (!method.equals("GET")) {
+        if (!requestMethod.equals("GET")) {
             in.skip(headersDelimiter.length);
-            // вычитываем Content-Length, чтобы прочитать body
-            final var contentLength = Optional.of(headers.get("Content-Length"));
-            if (contentLength.isPresent()) {
-                final var length = Integer.parseInt(contentLength.get());
+            final var contentLength = requestHeaders.get("Content-Length");
+            if (contentLength != null) {
+                final var length = Integer.parseInt(contentLength);
                 final var bodyBytes = in.readNBytes(length);
                 body = new String(bodyBytes);
             }
@@ -140,8 +140,8 @@ public class Request {
 
 
 
-        // запрос с виртуальным телом
-        return new Request(method, originalPath, path, params, headers, body);
+        // запрос с неразобранным телом
+        return new Request(requestMethod, requestOriginalPath, requestPath, requestParams, requestHeaders, body);
     }
 
     public String getMethod() {
@@ -160,6 +160,10 @@ public class Request {
 
     public Map<String, String> getHeaders() {
         return headers;
+    }
+
+    public Optional<String> getHeader(String header) {
+        return Optional.ofNullable(headers.get(header));
     }
 
     /**
@@ -182,18 +186,18 @@ public class Request {
      * @return  массив присутствующих значений параметра
      * или пустой массив строк, если параметр отсутствует.
      */
-    public String[] getQueryParam(String name) {
-        if (!queryParams.containsKey(name))
-            return new String[0];
-        return queryParams.get(name).toArray(String[]::new);
+    public Optional<String[]> getQueryParam(String name) {
+        return queryParams.get(name) == null ?
+                Optional.empty() :
+                Optional.of(queryParams.get(name).toArray(String[]::new));
     }
 
     /**
      * Возвращает карту из ключей параметров и значений типа 'список значений'.
      * @return опциональное значение поля queryParam.
      */
-    public Optional<Map<String, List<String>>> getQueryParams() {
-        return Optional.of(queryParams);
+    public Map<String, List<String>> getQueryParams() {
+        return queryParams;
     }
 
 

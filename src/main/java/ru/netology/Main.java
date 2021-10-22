@@ -11,7 +11,6 @@ public class Main {
     public static final int POOL_SIZE = 64;
     public static final String PUBLIC_DIR = "public";
     public static final int SERVER_PORT = 9999;
-    public static final String HOSTNAME = "localhost";
 
     public static void main(String[] args) {
         Server server = new Server(POOL_SIZE, PUBLIC_DIR, SERVER_PORT);
@@ -48,29 +47,30 @@ public class Main {
             }
 
             final var filePath = Path.of(".", server.getPublic_dir(), request.getPath());
-            final var mimeType = Files.probeContentType(filePath);
-            final var template = Files.readString(filePath);
+            var content = Files.readString(filePath);
 
-            final byte[] content = template.replace(
-                    "{authorization}",
-                    String.format("""
-                                    <br/>Принят логин: %s
-                                    <br/>Принят пароль: %s
-                                """, request.getQueryParam("login")[0],
-                                     request.getQueryParam("password")[0])
-                    ).getBytes();
+            if (request.getQueryParam("login").isPresent() &&
+                request.getQueryParam("password").isPresent()) {
+                content = content.replace(
+                        "{authorization}",
+                        String.format("""
+                                            <br/>Принят логин: %s
+                                            <br/>Принят пароль: %s
+                                        """,
+                                request.getQueryParam("login").get()[0],
+                                request.getQueryParam("password").get()[0])
+                );
+            }
 
-            responseStream.write((
-                    ("""
-                            HTTP/1.1 200 OK\r
-                            Content-Type: %s\r
-                            Content-Length: %d\r
-                            Connection: close\r
-                            \r
-                            """).formatted(mimeType, content.length)
-            ).getBytes());
-
-            responseStream.write(content);
+            responseStream.write("""
+                    HTTP/1.1 200 OK\r
+                    Content-Type: %s\r
+                    Content-Length: %d\r
+                    Connection: close\r
+                    \r
+                    """.formatted(Files.probeContentType(filePath), content.length())
+                .getBytes());
+            responseStream.write(content.getBytes());
             responseStream.flush();
         });
 
@@ -84,16 +84,7 @@ public class Main {
             // можно добавить установку порта с консоли или даже запуск с параметрами
             // тогда класс Main превращается в оболочку для управления сервером
 
-
         server.stopServer();
-//        server.interrupt();
-//        // виртуальное подключение к серверу, чтобы разблокировать его ожидание на порту
-//        try {
-//            Socket virtual = new Socket(HOSTNAME, SERVER_PORT);
-//            virtual.close();
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
     }
 }
 
