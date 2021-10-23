@@ -126,6 +126,15 @@ public class Server extends Thread {
                 System.out.println("ERROR_RESPONSE_ERROR");
                 ex.printStackTrace();
             }
+        } catch (NumberFormatException e) {
+            System.out.println("HANDLE_ERROR");
+            e.printStackTrace();
+            try {
+                badRequestResponse(socket.getOutputStream());
+            } catch (IOException ex) {
+                System.out.println("ERROR_RESPONSE_ERROR");
+                ex.printStackTrace();
+            }
         }
     }
 
@@ -221,6 +230,12 @@ public class Server extends Thread {
         out.flush();
     }
 
+    /**
+     * Сообщает, является ли запрашиваемая пара метод-путь случаем специфицированной обработки.
+     * @param method метод запроса.
+     * @param path   запрашиваемый путь
+     * @return  true, если на этот метод и этот путь зарегистрирован обработчик.
+     */
     private boolean isSpecified(String method, String path) {
         return handlers.get(method) != null &&
                 handlers.get(method).get(path) != null;
@@ -238,12 +253,16 @@ public class Server extends Thread {
         this.server_port = server_port;
     }
 
+    /**
+     * Прерывает выполнение серверного потока.
+     */
     public void stopServer() {
         interrupt();
         // виртуальное подключение к серверу, чтобы разблокировать его ожидание на порту
         try {
             new Socket(HOSTNAME, server_port).close();
         } catch (IOException e) {
+            System.out.println("VIRTUAL_CONNECTION_ERROR");
             e.printStackTrace();
         }
     }
