@@ -49,8 +49,8 @@ public class Request {
                 .append(header.getKey()).append("\t=\t")
                 .append(header.getValue()).append("\n");
 
-        if (queryParams != null && !queryParams.isEmpty()) {
-            desc.append("\tПараметры запроса:\n");
+        if (hasQueryParams()) {
+            desc.append("\tПараметры запроса из адресной строки:\n");
             for (Map.Entry<String, List<String>> query : queryParams.entrySet())
                 for (String value : query.getValue())
                     desc.append(query.getKey()).append(" = ").append(value).append("\n");
@@ -58,6 +58,13 @@ public class Request {
 
         if (!body.isBlank()) {
             desc.append("\tТело:\n").append(body);
+        }
+
+        if (hasPostParams()) {
+            desc.append("\n\tПараметры запроса из те́ла:\n");
+            for (Map.Entry<String, List<String>> query : postParams.entrySet())
+                for (String value : query.getValue())
+                    desc.append(query.getKey()).append(" = ").append(value).append("\n");
         }
 
         return desc.append("\n").toString();
@@ -98,14 +105,14 @@ public class Request {
             int queryIndex = rqOriginalPath.indexOf("?");
             rqPath = rqOriginalPath.substring(0, queryIndex);
             final var queryString = rqOriginalPath.substring(queryIndex + 1);
-
-            for (String line : queryString.split("&")) {
-                int delimiterIndex = line.indexOf("=");
-                String name = URLDecoder.decode(line.substring(0, delimiterIndex), StandardCharsets.UTF_8);
-                String value = URLDecoder.decode(line.substring(delimiterIndex + 1), StandardCharsets.UTF_8);
-                rqParams.putIfAbsent(name, new ArrayList<>());
-                rqParams.get(name).add(value);
-            }
+            rqParams = paramStringToMap(queryString);
+//            for (String line : queryString.split("&")) {
+//                int delimiterIndex = line.indexOf("=");
+//                String name = URLDecoder.decode(line.substring(0, delimiterIndex), StandardCharsets.UTF_8);
+//                String value = URLDecoder.decode(line.substring(delimiterIndex + 1), StandardCharsets.UTF_8);
+//                rqParams.putIfAbsent(name, new ArrayList<>());
+//                rqParams.get(name).add(value);
+//            }
         }
 
         final var headersDelimiter = new byte[]{'\r', '\n', '\r', '\n'};
@@ -130,18 +137,38 @@ public class Request {
         byte[] bodyBytes = new byte[0];
         if (!rqMethod.equals("GET")) {
             in.skip(headersDelimiter.length);
-            final var contentLengthValue = rqHeaders.get("Content-Length");
-            if (contentLengthValue != null)
-                bodyBytes = in.readNBytes(Integer.parseInt(contentLengthValue));
+            final var contentLengthString = rqHeaders.get("Content-Length");
+            if (contentLengthString != null)
+                bodyBytes = in.readNBytes(Integer.parseInt(contentLengthString));
         }
         // TODO: получим параметры из запроса, если они в теле
+        final var body = new String(bodyBytes);
         Map<String, List<String>> rqPostParams = new HashMap<>();
+        if (body.length() > 0)
+            rqPostParams = paramStringToMap(body);
 
 
 
+        // запрос с разобранным x-www-form-urlencoded телом
+        return new Request(rqMethod, rqOriginalPath, rqPath, rqParams, rqHeaders, body, rqPostParams);
+    }
 
-        // запрос с неразобранным телом
-        return new Request(rqMethod, rqOriginalPath, rqPath, rqParams, rqHeaders, new String(bodyBytes), rqPostParams);
+    /**
+     * Создаёт из полученной строки́ Карту <Имя, Список<Значение>>,
+     * разбивая материал по '&' на пары, затем по '=' на ключ/значение.
+     * @param material    разбираемая строка.
+     * @return  карту параметров "имя-значение".
+     */
+    private static Map<String, List<String>> paramStringToMap(String material) {
+        Map<String, List<String>> map = new HashMap<>();
+        for (String line : material.split("&")) {
+            int delimiterIndex = line.indexOf("=");
+            String name = URLDecoder.decode(line.substring(0, delimiterIndex), StandardCharsets.UTF_8);
+            String value = URLDecoder.decode(line.substring(delimiterIndex + 1), StandardCharsets.UTF_8);
+            map.putIfAbsent(name, new ArrayList<>());
+            map.get(name).add(value);
+        }
+        return map;
     }
 
     public String getMethod() {
@@ -184,7 +211,6 @@ public class Request {
         return body;
     }
 
-
     /**
      * Возвращает опционально значения, соответствующие запрашиваемому параметру.
      * @param name имя параметра.
@@ -197,6 +223,17 @@ public class Request {
     }
 
     /**
+     * Возвращает опционально значения, соответствующие запрашиваемому параметру.
+     * @param name имя параметра.
+     * @return  опциональ с массивом значений параметра либо, если параметр отсутствует, пустую.
+     */
+    public Optional<String[]> getPostParam(String name) {
+        return postParams.get(name) == null ?
+                Optional.empty() :
+                Optional.of(postParams.get(name).toArray(String[]::new));
+    }
+
+    /**
      * Возвращает карту из ключей типа 'параметр' и значений типа 'список значений'.
      * @return значение поля queryParam.
      */
@@ -205,7 +242,7 @@ public class Request {
     }
 
 
-
+    @Deprecated
     private static Optional<String> extractHeader(List<String> headers, String header) {
         return headers.stream()
                 .filter(o -> o.startsWith(header))
@@ -228,21 +265,33 @@ public class Request {
         }
         return -1;
     }
-
     public String getOriginalPath() {
         return originalPath;
     }
-
     /**
-     * Сообщает, распознаны ли в запросе квери-парамс.
+     * Сообщает, распознаны ли в пути параметры запроса.
      * @return  true, если присутствует хотя бы один параметр.
      */
     public boolean hasQueryParams() {
         return queryParams != null && !queryParams.isEmpty();
     }
 
+    /**
+     * Сообщает, распознаны ли в параметры запроса теле.
+     * @return {@code true}, если хотя бы один пост-параметр опознан.
+     */
+    private boolean hasPostParams() {
+        return postParams != null && !postParams.isEmpty();
+    }
+
+    /**
+     * Возвращает карту из ключей типа 'параметр' и значений типа 'список значений'.
+     * @return значение поля postParam.
+     */
     public Map<String, List<String>> getPostParams() {
         return postParams;
     }
+
+
 
 }

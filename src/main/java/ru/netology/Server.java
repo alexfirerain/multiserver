@@ -139,51 +139,6 @@ public class Server extends Thread {
     }
 
     /**
-     * Стандартный обработчик ошибки сервера.
-     * @param out   куда слать.
-     * @throws IOException при невозможности отослать.
-     */
-    private void serverErrorResponse(OutputStream out) throws IOException {
-        out.write(("""
-                HTTP/1.1 500 Internal Server Error\r
-                Content-Length: 0\r
-                Connection: close\r
-                \r
-                """).getBytes());
-        out.flush();
-    }
-
-    /**
-     * Стандартный обработчик неимплементированного метода.
-     * @param out   куда слать.
-     * @throws IOException  при невозможности отослать.
-     */
-    private void notImplementedResponse(OutputStream out) throws IOException {
-        out.write(("""
-                HTTP/1.1 501 Not Implemented\r
-                Content-Length: 0\r
-                Connection: close\r
-                \r
-                """).getBytes());
-        out.flush();
-    }
-
-    /**
-     * Стандартный обработчик отсутствующего ресурса.
-     * @param out   кому слать.
-     * @throws IOException при невозможности отослать.
-     */
-    private void notFoundResponse(OutputStream out) throws IOException {
-        out.write(("""
-                HTTP/1.1 404 Not Found\r
-                Content-Length: 0\r
-                Connection: close\r
-                \r
-                """).getBytes());
-        out.flush();
-    }
-
-    /**
      * Стандартный обработчик запроса GET на ресурсы,
      * обработка которых в Библиотеке не специфицирована.
      */
@@ -214,6 +169,58 @@ public class Server extends Thread {
 
 
     /**
+     * Сообщает, является ли запрашиваемая пара метод-путь случаем специфицированной обработки.
+     * @param method метод запроса.
+     * @param path   запрашиваемый путь
+     * @return  {@code true}, если на этот метод и этот путь зарегистрирован обработчик.
+     */
+    private boolean isSpecified(String method, String path) {
+        return handlers.get(method) != null &&
+                handlers.get(method).get(path) != null;
+    }
+
+    private boolean isAllowed(String method) {
+        return allowedMethods.contains(method);
+    }
+
+    /**
+     * Прерывает выполнение серверного потока.
+     */
+    public void stopServer() {
+        interrupt();
+        // виртуальное подключение к серверу, чтобы разблокировать его ожидание на порту
+        try {
+            new Socket(HOSTNAME, server_port).close();
+        } catch (IOException e) {
+            System.out.println("VIRTUAL_CONNECTION_ERROR");
+            e.printStackTrace();
+        }
+    }
+
+    public String getPublic_dir() {
+        return public_dir;
+    }
+
+    public void setServer_port(int server_port) {
+        this.server_port = server_port;
+    }
+
+    /**
+     * Стандартный обработчик отсутствующего ресурса.
+     * @param out   кому слать.
+     * @throws IOException при невозможности отослать.
+     */
+    private void notFoundResponse(OutputStream out) throws IOException {
+        out.write(("""
+                HTTP/1.1 404 Not Found\r
+                Content-Length: 0\r
+                Connection: close\r
+                \r
+                """).getBytes());
+        out.flush();
+    }
+
+    /**
      * Стандартный обработчик некорректного запроса.
      * @param out   куда отсылать ответ.
      * @throws IOException при невозможности нормально отослать.
@@ -231,40 +238,33 @@ public class Server extends Thread {
     }
 
     /**
-     * Сообщает, является ли запрашиваемая пара метод-путь случаем специфицированной обработки.
-     * @param method метод запроса.
-     * @param path   запрашиваемый путь
-     * @return  true, если на этот метод и этот путь зарегистрирован обработчик.
+     * Стандартный обработчик неимплементированного метода.
+     * @param out   куда слать.
+     * @throws IOException при невозможности отослать.
      */
-    private boolean isSpecified(String method, String path) {
-        return handlers.get(method) != null &&
-                handlers.get(method).get(path) != null;
-    }
-
-    private boolean isAllowed(String method) {
-        return allowedMethods.contains(method);
-    }
-
-    public String getPublic_dir() {
-        return public_dir;
-    }
-
-    public void setServer_port(int server_port) {
-        this.server_port = server_port;
+    private void notImplementedResponse(OutputStream out) throws IOException {
+        out.write(("""
+                HTTP/1.1 501 Not Implemented\r
+                Content-Length: 0\r
+                Connection: close\r
+                \r
+                """).getBytes());
+        out.flush();
     }
 
     /**
-     * Прерывает выполнение серверного потока.
+     * Стандартный обработчик ошибки сервера.
+     * @param out   куда слать.
+     * @throws IOException при невозможности отослать.
      */
-    public void stopServer() {
-        interrupt();
-        // виртуальное подключение к серверу, чтобы разблокировать его ожидание на порту
-        try {
-            new Socket(HOSTNAME, server_port).close();
-        } catch (IOException e) {
-            System.out.println("VIRTUAL_CONNECTION_ERROR");
-            e.printStackTrace();
-        }
+    private void serverErrorResponse(OutputStream out) throws IOException {
+        out.write(("""
+                HTTP/1.1 500 Internal Server Error\r
+                Content-Length: 0\r
+                Connection: close\r
+                \r
+                """).getBytes());
+        out.flush();
     }
 }
 
