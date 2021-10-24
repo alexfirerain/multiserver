@@ -1,5 +1,9 @@
 package ru.netology;
 
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -45,19 +49,21 @@ public class Main {
             }
 
             final var filePath = Path.of(".", server.getPublic_dir(), request.getPath());
-            var content = Files.readString(filePath);
+            String content = Files.readString(filePath);
+
+            Document doc = Jsoup.parse(content, "UTF-8");
+            Element loginReport = doc.getElementById("login");
+            Element passwordReport = doc.getElementById("password");
 
             if (request.getQueryParam("login").isPresent() &&
-                request.getQueryParam("password").isPresent()) {
-                content = content.replace(
-                        "{authorization}",
-                        String.format("""
-                                            <br/>Принят логин: %s
-                                            <br/>Принят пароль: %s
-                                        """,
-                                request.getQueryParam("login").get()[0],
-                                request.getQueryParam("password").get()[0])
-                );
+                request.getQueryParam("password").isPresent() &&
+                loginReport != null && passwordReport != null) {
+
+                loginReport.text(String.format("Принят логин: %s",
+                            request.getQueryParam("login").get()[0]));
+                passwordReport.text(String.format("Принят пароль: %s",
+                            request.getQueryParam("password").get()[0]));
+                content = doc.html();
             }
 
             responseStream.write("""
@@ -71,6 +77,12 @@ public class Main {
             responseStream.write(content.getBytes());
             responseStream.flush();
         });
+
+        // обработчик пост-формы с "пост-формы" на главную
+        server.addHandler("POST", "/index.html", (request, responseStream) -> {
+
+        });
+
 
         server.start();
 

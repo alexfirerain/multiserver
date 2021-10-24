@@ -50,7 +50,7 @@ public class Request {
                 .append(header.getValue()).append("\n");
 
         if (hasQueryParams()) {
-            desc.append("\tПараметры запроса из адресной строки:\n");
+            desc.append("\tПараметры запроса из адресной строки́:\n");
             for (Map.Entry<String, List<String>> query : queryParams.entrySet())
                 for (String value : query.getValue())
                     desc.append(query.getKey()).append(" = ").append(value).append("\n");
@@ -106,13 +106,6 @@ public class Request {
             rqPath = rqOriginalPath.substring(0, queryIndex);
             final var queryString = rqOriginalPath.substring(queryIndex + 1);
             rqParams = paramStringToMap(queryString);
-//            for (String line : queryString.split("&")) {
-//                int delimiterIndex = line.indexOf("=");
-//                String name = URLDecoder.decode(line.substring(0, delimiterIndex), StandardCharsets.UTF_8);
-//                String value = URLDecoder.decode(line.substring(delimiterIndex + 1), StandardCharsets.UTF_8);
-//                rqParams.putIfAbsent(name, new ArrayList<>());
-//                rqParams.get(name).add(value);
-//            }
         }
 
         final var headersDelimiter = new byte[]{'\r', '\n', '\r', '\n'};
@@ -141,13 +134,11 @@ public class Request {
             if (contentLengthString != null)
                 bodyBytes = in.readNBytes(Integer.parseInt(contentLengthString));
         }
-        // TODO: получим параметры из запроса, если они в теле
+
         final var body = new String(bodyBytes);
         Map<String, List<String>> rqPostParams = new HashMap<>();
         if (body.length() > 0)
             rqPostParams = paramStringToMap(body);
-
-
 
         // запрос с разобранным x-www-form-urlencoded телом
         return new Request(rqMethod, rqOriginalPath, rqPath, rqParams, rqHeaders, body, rqPostParams);
@@ -156,6 +147,7 @@ public class Request {
     /**
      * Создаёт из полученной строки́ Карту <Имя, Список<Значение>>,
      * разбивая материал по '&' на пары, затем по '=' на ключ/значение.
+     * Все имена и значения восстанавливаются из процентной кодировки.
      * @param material    разбираемая строка.
      * @return  карту параметров "имя-значение".
      */
@@ -233,6 +225,25 @@ public class Request {
                 Optional.of(postParams.get(name).toArray(String[]::new));
     }
 
+    public Optional<String[]> getParam(String name) {
+        List<String> qP = queryParams.get(name);
+        List<String> pP = postParams.get(name);
+        if (qP == null) {
+            if (pP == null) {
+                return Optional.empty();
+            } else {
+                return Optional.of(postParams.get(name).toArray(String[]::new));
+            }
+        } else {
+            if (pP == null) {
+                return Optional.of(queryParams.get(name).toArray(String[]::new));
+            } else {
+                qP.addAll(pP);
+                return Optional.of(qP.toArray(String[]::new));
+            }
+        }
+    }
+
     /**
      * Возвращает карту из ключей типа 'параметр' и значений типа 'список значений'.
      * @return значение поля queryParam.
@@ -242,17 +253,7 @@ public class Request {
     }
 
 
-    @Deprecated
-    private static Optional<String> extractHeader(List<String> headers, String header) {
-        return headers.stream()
-                .filter(o -> o.startsWith(header))
-                .map(o -> o.substring(o.indexOf(" ")))
-                .map(String::trim)
-                .findFirst();
-    }
-
     // from google guava with modifications
-    @SuppressWarnings("GrazieInspection")
     private static int indexOf(byte[] array, byte[] target, int start, int max) {
         outer:
         for (int i = start; i < max - target.length + 1; i++) {
@@ -265,9 +266,11 @@ public class Request {
         }
         return -1;
     }
+
     public String getOriginalPath() {
         return originalPath;
     }
+
     /**
      * Сообщает, распознаны ли в пути параметры запроса.
      * @return  true, если присутствует хотя бы один параметр.
@@ -275,7 +278,6 @@ public class Request {
     public boolean hasQueryParams() {
         return queryParams != null && !queryParams.isEmpty();
     }
-
     /**
      * Сообщает, распознаны ли в параметры запроса теле.
      * @return {@code true}, если хотя бы один пост-параметр опознан.
@@ -292,6 +294,25 @@ public class Request {
         return postParams;
     }
 
+    public Map<String, List<String>> getAllParams() {
+        Map<String, List<String>> allParams = new HashMap<>(queryParams);
+        for (Map.Entry<String, List<String>> params : postParams.entrySet()) {
+            allParams.putIfAbsent(params.getKey(), new ArrayList<>());
+            allParams.get(params.getKey()).addAll(params.getValue());
+        }
+        return allParams;
+    }
 
+    public boolean hasAnyParams() {
+        return hasQueryParams() || hasPostParams();
+    }
 
+    @Deprecated
+    private static Optional<String> extractHeader(List<String> headers, String header) {
+        return headers.stream()
+                .filter(o -> o.startsWith(header))
+                .map(o -> o.substring(o.indexOf(" ")))
+                .map(String::trim)
+                .findFirst();
+    }
 }
