@@ -7,6 +7,8 @@ import org.jsoup.nodes.Element;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.Scanner;
 
 public class Main {
@@ -51,19 +53,19 @@ public class Main {
             final var filePath = Path.of(".", server.getPublic_dir(), request.getPath());
             String content = Files.readString(filePath);
 
-            Document doc = Jsoup.parse(content, "UTF-8");
-            Element loginReport = doc.getElementById("login");
-            Element passwordReport = doc.getElementById("password");
+            if (request.getQueryParam("login").isPresent()) {
 
-            if (request.getQueryParam("login").isPresent() &&
-                request.getQueryParam("password").isPresent() &&
-                loginReport != null && passwordReport != null) {
+                content = setTextToElement(content,
+                        "login",
+                        "Принят логин: %s"
+                                .formatted(request.getQueryParam("login").get()[0]));
+            }
 
-                loginReport.text(String.format("Принят логин: %s",
-                            request.getQueryParam("login").get()[0]));
-                passwordReport.text(String.format("Принят пароль: %s",
-                            request.getQueryParam("password").get()[0]));
-                content = doc.html();
+            if (request.getQueryParam("password").isPresent()) {
+                content = setTextToElement(content,
+                        "password",
+                        "Принят пароль: %s"
+                                .formatted(request.getQueryParam("password").get()[0]));
             }
 
             responseStream.write("""
@@ -80,7 +82,39 @@ public class Main {
 
         // обработчик пост-формы с "пост-формы" на главную
         server.addHandler("POST", "/index.html", (request, responseStream) -> {
+            final var filePath = Path.of(".", server.getPublic_dir(), request.getPath());
+            String content = Files.readString(filePath);
 
+            if (!request.hasAnyParams()) {
+                content = setTextToElement(content,
+                        "response",
+                        "Никаких параметров не принято!");
+            } else {
+
+                StringBuilder report = new StringBuilder("Приняты следующие значения:\n");
+
+                for (Map.Entry<String, List<String>> entry : request.getAllParams().entrySet()) {
+
+                    report.append(entry.getKey()).append(":<br/>\n");
+
+                    for (String value : entry.getValue()) {
+                        report.append("\t>").append(value).append("<br/>\n");
+                    }
+                }
+
+                content = setTextToElement(content, "response", report.toString());
+
+            }
+            responseStream.write("""
+                    HTTP/1.1 200 OK\r
+                    Content-Type: %s\r
+                    Content-Length: %d\r
+                    Connection: close\r
+                    \r
+                    """.formatted(Files.probeContentType(filePath), content.length())
+                    .getBytes());
+            responseStream.write(content.getBytes());
+            responseStream.flush();
         });
 
 
@@ -96,6 +130,34 @@ public class Main {
 
         server.stopServer();
     }
+
+    /**
+     * Определяет входную строку как html-документ и, если в нём найден элемент
+     * со специфицированным id, заменяет его текстовое содержание на переданный текст.
+     * @param content входной html-документ.
+     * @param id      id элемента, в который нужно вставить текст.
+     * @param text    вставляемый текст.
+     * @return  html-документ с произведённой заменой.
+     */
+    public static String setTextToElement(String content, String id, String text) {
+        Document doc = Jsoup.parse(content, "UTF-8");
+        Element element = doc.getElementById(id);
+        if (element != null) {
+            element.append(text);
+        }
+        return doc.html();
+    }
+
+//    public static String addCildNodeTo(String content, String targetId, String topicId, String txt) {
+//        Document doc = Jsoup.parse(content, "UTF-8");
+//        Element element = doc.getElementById(targetId);
+//        if (element != null) {
+//            element.append()
+//        }
+//        element.text(text);
+//        return doc.html();
+//    }
+
 }
 
 

@@ -9,12 +9,12 @@
 </head>
 <body>
   <form action="http://localhost:9999?value=get-value" method="post" enctype="multipart/form-data">
-      <input> <!-- without name - никуда не отправится -->
-      <p><input name="title"></p>
-      <input name="value">
-      <input name="value"> <!-- специально два поля с одним name -->
-      <input type="file" name="image"> <!-- для отправки файлов -->
-    <button>Send</button>
+      <p><input placeholder="Просто окошко"><br/></p> <!-- without name - никуда не отправится -->
+      <p><input name="title" placeholder="Название"><br/></p>
+      <p><input name="value" placeholder="Значение"><br/></p>
+      <p><input name="value" placeholder="Значение"><br/></p><!-- специально два поля с одним name -->
+      <p><input type="file" name="image"><br/></p> <!-- для отправки файлов -->
+      <button>Send</button>
   </form>
 </body>
 </html>
