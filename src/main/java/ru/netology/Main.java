@@ -96,7 +96,7 @@ public class Main {
                     target.append("<h3>Приняты следующие значения:</h3>");
                     for (Map.Entry<String, List<String>> entry : request.getAllParams().entrySet()) {
 
-                        Element paramName = new Element("b").append(entry.getKey()).wrap("<p></p>");
+                        Element paramName = new Element("b").append(entry.getKey());
                         target.appendChild(paramName);
 
                         Element valueList = new Element("ul");
@@ -153,15 +153,6 @@ public class Main {
         return doc.html();
     }
 
-//    public static String addCildNodeTo(String content, String targetId, String topicId, String txt) {
-//        Document doc = Jsoup.parse(content, "UTF-8");
-//        Element element = doc.getElementById(targetId);
-//        if (element != null) {
-//            element.append()
-//        }
-//        element.text(text);
-//        return doc.html();
-//    }
 
 }
 
