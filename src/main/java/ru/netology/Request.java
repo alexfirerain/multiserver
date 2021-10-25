@@ -7,7 +7,7 @@ import java.util.*;
 
 /**
  * Содержит структуру запроса к северу: метод, путь, набор заголовков
- * и карту параметров, а также виртуальное тело запроса.
+ * и карту параметров, а также тело запроса.
  * Данная реализация также содержит значение пути по умолчанию
  * и значение лимита на длину запроса.
  */
@@ -105,7 +105,7 @@ public class Request {
             int queryIndex = rqOriginalPath.indexOf("?");
             rqPath = rqOriginalPath.substring(0, queryIndex);
             final var queryString = rqOriginalPath.substring(queryIndex + 1);
-            rqParams = paramStringToMap(queryString);
+            rqParams = paramStringToMap(queryString, "application/x-www-form-urlencoded");
         }
 
         final var headersDelimiter = new byte[]{'\r', '\n', '\r', '\n'};
@@ -137,8 +137,11 @@ public class Request {
 
         final var body = new String(bodyBytes);
         Map<String, List<String>> rqPostParams = new HashMap<>();
-        if (body.length() > 0)
-            rqPostParams = paramStringToMap(body);
+
+        if (body.length() > 0 && rqHeaders.get("Content-Type") != null)
+            rqPostParams = paramStringToMap(body, rqHeaders.get("Content-Type"));
+
+
 
         // запрос с разобранным x-www-form-urlencoded телом
         return new Request(rqMethod, rqOriginalPath, rqPath, rqParams, rqHeaders, body, rqPostParams);
@@ -146,23 +149,46 @@ public class Request {
 
     /**
      * Создаёт из полученной строки́ Карту <Имя, Список<Значение>>,
-     * разбивая материал по '&' на пары, затем по '=' на ключ/значение.
-     * Все имена и значения восстанавливаются из процентной кодировки.
-     * @param material    разбираемая строка.
+     * разбивая материал пары ключ/значение в соответствии с указанной кодировкой.
+     * @param material  разбираемая строка.
+     * @param encType   тип содержимого (предполагается указанный в заголовке запроса).
      * @return  карту параметров "имя-значение".
      */
-    private static Map<String, List<String>> paramStringToMap(String material) {
+    private static Map<String, List<String>> paramStringToMap(String material, String encType) {
         Map<String, List<String>> map = new HashMap<>();
-        for (String line : material.split("&")) {
-            int delimiterIndex = line.indexOf("=");
-            String name = URLDecoder.decode(line.substring(0, delimiterIndex), StandardCharsets.UTF_8);
-            String value = URLDecoder.decode(line.substring(delimiterIndex + 1), StandardCharsets.UTF_8);
-            map.putIfAbsent(name, new ArrayList<>());
-            map.get(name).add(value);
+
+        switch (encType) {
+
+            case "application/x-www-form-urlencoded":
+                for (String line : material.split("&")) {
+                    int delimiterIndex = line.indexOf("=");
+                    String name = URLDecoder.decode(line.substring(0, delimiterIndex), StandardCharsets.UTF_8);
+                    String value = URLDecoder.decode(line.substring(delimiterIndex + 1), StandardCharsets.UTF_8);
+                    map.putIfAbsent(name, new ArrayList<>());
+                    map.get(name).add(value);
+                }
+                break;
+
+            case "text/plain":
+                for (String line : material.split("\r\n")) {
+                    int delimiterIndex = line.indexOf("=");
+                    String name = line.substring(0, delimiterIndex);
+                    String value = line.substring(delimiterIndex + 1);
+                    map.putIfAbsent(name, new ArrayList<>());
+                    map.get(name).add(value);
+                }
+                break;
+
+            // TODO: разбор многочастного запроса.
+
         }
         return map;
     }
 
+    /**
+     * Сообщает метод запроса.
+     * @return  значение поля method.
+     */
     public String getMethod() {
         return method;
     }
@@ -177,6 +203,10 @@ public class Request {
                 defaultPath : path;
     }
 
+    /**
+     * Возвращает карту распознанных заголовков.
+     * @return значение поля headers.
+     */
     public Map<String, String> getHeaders() {
         return headers;
     }
@@ -199,12 +229,16 @@ public class Request {
         return defaultPath;
     }
 
+    /**
+     * Возвращает строковое представление переданного тела запроса.
+     * @return значение поля body.
+     */
     public String getBody() {
         return body;
     }
 
     /**
-     * Возвращает опционально значения, соответствующие запрашиваемому параметру.
+     * Возвращает опционально значения из строки запроса, соответствующие запрашиваемому параметру.
      * @param name имя параметра.
      * @return  опциональ с массивом значений параметра либо, если параметр отсутствует, пустую.
      */
@@ -215,7 +249,7 @@ public class Request {
     }
 
     /**
-     * Возвращает опционально значения, соответствующие запрашиваемому параметру.
+     * Возвращает опционально значения из тела запроса, соответствующие запрашиваемому параметру.
      * @param name имя параметра.
      * @return  опциональ с массивом значений параметра либо, если параметр отсутствует, пустую.
      */
@@ -225,23 +259,20 @@ public class Request {
                 Optional.of(postParams.get(name).toArray(String[]::new));
     }
 
-    public Optional<String[]> getParam(String name) {
-        List<String> qP = queryParams.get(name);
-        List<String> pP = postParams.get(name);
-        if (qP == null) {
-            if (pP == null) {
+    /**
+     * Возвращает опционально массив всех значений, соответствующих заданному параметру запроса,
+     * переданы ли они адресной строкой или телом.
+     * @param name запрашиваемый параметр.
+     * @return  опциональ с массивом строковых значений.
+     */
+    public Optional<String[]> getAnyParam(String name) {
+        var values = getAllParams().get(name);
+            if (values == null) {
                 return Optional.empty();
             } else {
-                return Optional.of(postParams.get(name).toArray(String[]::new));
+                return Optional.of(values.toArray(String[]::new));
             }
-        } else {
-            if (pP == null) {
-                return Optional.of(queryParams.get(name).toArray(String[]::new));
-            } else {
-                qP.addAll(pP);
-                return Optional.of(qP.toArray(String[]::new));
-            }
-        }
+
     }
 
     /**
@@ -254,6 +285,14 @@ public class Request {
 
 
     // from google guava with modifications
+    /**
+     * Находит в указанном массиве, с какого индекса начинается указанная последовательность.
+     * @param array  указанный массив.
+     * @param target указанная последовательность.
+     * @param start  с какого индекса в массиве искать.
+     * @param max    по какой индекс в массиве искать.
+     * @return  индекс указанной последовательности или -1, если она не обнаружена.
+     */
     private static int indexOf(byte[] array, byte[] target, int start, int max) {
         outer:
         for (int i = start; i < max - target.length + 1; i++) {
@@ -267,6 +306,10 @@ public class Request {
         return -1;
     }
 
+    /**
+     * Возвращает полный адресный путь запроса, т.е. путь и параметры, как они получены.
+     * @return  полную строку запроса.
+     */
     public String getOriginalPath() {
         return originalPath;
     }
@@ -294,6 +337,10 @@ public class Request {
         return postParams;
     }
 
+    /**
+     * Создаёт и отдаёт объединённую карту параметров запроса, переданных в адресной строке и в теле.
+     * @return карту всех параметров запроса.
+     */
     public Map<String, List<String>> getAllParams() {
         Map<String, List<String>> allParams = new HashMap<>(queryParams);
         for (Map.Entry<String, List<String>> params : postParams.entrySet()) {
@@ -303,10 +350,46 @@ public class Request {
         return allParams;
     }
 
+    /**
+     * Сообщает, присутствуют ли в запросе параметры (в строке или в теле).
+     * @return true, если распознан хотя бы один параметр.
+     */
     public boolean hasAnyParams() {
         return hasQueryParams() || hasPostParams();
     }
 
+    /**
+     * Сообщает, является ли тип содержимого запроса text/plain.
+     * @return true, если тип содержимого запроса text/plain.
+     */
+    public boolean isTextPlain() {
+        var contentType = getHeader("Content-Type");
+        return contentType.isPresent() && "text/plain".equals(contentType.get());
+    }
+    /**
+     * Сообщает, является ли тип содержимого запроса application/x-www-form-urlencoded.
+     * @return true, если тип содержимого запроса application/x-www-form-urlencoded.
+     */
+    public boolean isUrlEncoded() {
+        var contentType = getHeader("Content-Type");
+        return contentType.isPresent() && "application/x-www-form-urlencoded".equals(contentType.get());
+    }
+    /**
+     * Сообщает, является ли тип содержимого запроса multipart/form-data.
+     * @return true, если тип содержимого запроса multipart/form-data.
+     */
+    public boolean isMultipart() {
+        var contentType = getHeader("Content-Type");
+        return contentType.isPresent() && "multipart/form-data".equals(contentType.get());
+    }
+
+
+    /**
+     * Доставатель значения параметра, который не используется в данной реализации.
+     * @param headers список строк "имя + значение параметра".
+     * @param header  искомый параметр.
+     * @return  первое найденное значение указанного параметра.
+     */
     @Deprecated
     private static Optional<String> extractHeader(List<String> headers, String header) {
         return headers.stream()
