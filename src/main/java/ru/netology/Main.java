@@ -90,21 +90,26 @@ public class Main {
                         "response",
                         "Никаких параметров не принято!");
             } else {
+                Document page = Jsoup.parse(content, "UTF-8");
+                Element target = page.getElementById("response");
+                if (target != null) {
+                    target.append("<h3>Приняты следующие значения:</h3>");
+                    for (Map.Entry<String, List<String>> entry : request.getAllParams().entrySet()) {
 
-                StringBuilder report = new StringBuilder("Приняты следующие значения:\n");
+                        Element paramName = new Element("b").append(entry.getKey()).wrap("<p></p>");
+                        target.appendChild(paramName);
 
-                for (Map.Entry<String, List<String>> entry : request.getAllParams().entrySet()) {
+                        Element valueList = new Element("ul");
+                        target.appendChild(valueList);
 
-                    report.append(entry.getKey()).append(":<br/>\n");
-
-                    for (String value : entry.getValue()) {
-                        report.append("\t>").append(value).append("<br/>\n");
+                        for (String value : entry.getValue()) {
+                            valueList.append("<li>%s</li>".formatted(value));
+                        }
                     }
                 }
-
-                content = setTextToElement(content, "response", report.toString());
-
+                content = page.html();
             }
+            System.out.println(content);    // мониторинг
             responseStream.write("""
                     HTTP/1.1 200 OK\r
                     Content-Type: %s\r
