@@ -19,11 +19,14 @@ public class Request {
     private final Map<String, String> headers;
     private final String body;
     private final Map<String, List<String>> postParams;
+    private final List<MultiPartDatum> multiPartData;
 
     private static final String defaultPath = "/index.html";   // начальный путь
     private static final int limit = 4096;
 
-    private Request(String method, String originalPath, String path, Map<String, List<String>> queryParams, Map<String, String> headers, String body, Map<String, List<String>> postParams) {
+    private Request(String method, String originalPath, String path,
+                    Map<String, List<String>> queryParams, Map<String, String> headers,
+                    String body, Map<String, List<String>> postParams, List<MultiPartDatum> multiPartData) {
         this.method = method;
         this.originalPath = originalPath;
         this.path = path;
@@ -31,6 +34,7 @@ public class Request {
         this.headers = headers;
         this.body = body;
         this.postParams = postParams;
+        this.multiPartData = multiPartData;
         System.out.println(this);           // мониторинг
     }
 
@@ -66,9 +70,13 @@ public class Request {
                 for (String value : query.getValue())
                     desc.append(query.getKey()).append(" = ").append(value).append("\n");
         }
+        if (hasMultiPartData()) {
+            desc.append("\nПрисутствует частей запроса: ").append(multiPartData.size());
+        }
 
         return desc.append("\n").toString();
     }
+
 
     /**
      * Создаёт структурированный запрос на основе входного потока.
@@ -98,27 +106,36 @@ public class Request {
         final var rqOriginalPath = requestLineParts[1];
 
         final String rqPath;
-        Map<String, List<String>> rqParams = new HashMap<>();
+        Map<String, List<String>> rqQParams = new HashMap<>();
         if (!rqOriginalPath.contains("?")) {
             rqPath = rqOriginalPath;
         } else {
             int queryIndex = rqOriginalPath.indexOf("?");
             rqPath = rqOriginalPath.substring(0, queryIndex);
             final var queryString = rqOriginalPath.substring(queryIndex + 1);
-            rqParams = paramStringToMap(queryString, "application/x-www-form-urlencoded");
+            rqQParams = paramStringToMap(queryString, "application/x-www-form-urlencoded");
         }
 
+        // постановили окончатель заголовков
         final var headersDelimiter = new byte[]{'\r', '\n', '\r', '\n'};
+        // начало заголовков = конец строки + длина окончателя строки
         final var headersStart = requestLineEnd + requestLineDelimiter.length;
+        // конец заголовков = где начинается окончатель заголовков
         final var headersEnd = indexOf(buffer, headersDelimiter, headersStart, read);
         if (headersEnd == -1) {
             throw new IOException("Invalid request");
         }
+        // вернулись читать с начала ввода
         in.reset();
+        // промотали до начала заголовков
         in.skip(headersStart);
+        // байты заголовков = байты отсюда до (длины заголовков)
         final var headersBytes = in.readNBytes(headersEnd - headersStart);
+
+        // трактуем байты заголовков как строку и нарезаем по меткам конца строк на массив
         final var headerPairs = new String(headersBytes).split("\r\n");
         Map<String, String> rqHeaders = new HashMap<>();
+        // каждую строку разбиваем по двоеточию и картируем
         for (String line : headerPairs) {
             var i = line.indexOf(":");
             var headerName = line.substring(0, i);
@@ -129,22 +146,31 @@ public class Request {
         // читаем тело
         byte[] bodyBytes = new byte[0];
         if (!rqMethod.equals("GET")) {
+            // промотали ввод на длину окончателя заголовков
             in.skip(headersDelimiter.length);
+            // читаем значение заголовка длины содержимого
             final var contentLengthString = rqHeaders.get("Content-Length");
+            // если такой заголовок есть
             if (contentLengthString != null)
+                // байты тела = столько байтов отсюда, как указано в нём
                 bodyBytes = in.readNBytes(Integer.parseInt(contentLengthString));
         }
 
         final var body = new String(bodyBytes);
         Map<String, List<String>> rqPostParams = new HashMap<>();
 
-        if (body.length() > 0 && rqHeaders.get("Content-Type") != null)
-            rqPostParams = paramStringToMap(body, rqHeaders.get("Content-Type"));
+        var contentType = rqHeaders.get("Content-Type");
+        if (body.length() > 0 && contentType != null)
+            rqPostParams = paramStringToMap(body, contentType);
+
+        List<MultiPartDatum> rqMultiPartData = new ArrayList<>();
+
+
 
 
 
         // запрос с разобранным x-www-form-urlencoded телом
-        return new Request(rqMethod, rqOriginalPath, rqPath, rqParams, rqHeaders, body, rqPostParams);
+        return new Request(rqMethod, rqOriginalPath, rqPath, rqQParams, rqHeaders, body, rqPostParams, rqMultiPartData);
     }
 
     /**
@@ -330,6 +356,14 @@ public class Request {
     }
 
     /**
+     * Сообщает, присутствуют ли в запросе данные в многочастной форме.
+     * @return true, если присутствует хотя бы одна многочастная сущность.
+     */
+    private boolean hasMultiPartData() {
+        return multiPartData != null && !multiPartData.isEmpty();
+    }
+
+    /**
      * Возвращает карту из ключей типа 'параметр' и значений типа 'список значений'.
      * @return значение поля postParam.
      */
@@ -380,7 +414,7 @@ public class Request {
      */
     public boolean isMultipart() {
         var contentType = getHeader("Content-Type");
-        return contentType.isPresent() && "multipart/form-data".equals(contentType.get());
+        return contentType.isPresent() && contentType.get().startsWith("multipart/form-data");
     }
 
 
