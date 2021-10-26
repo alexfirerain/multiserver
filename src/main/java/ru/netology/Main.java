@@ -54,17 +54,12 @@ public class Main {
             String content = Files.readString(filePath);
 
             if (request.getQueryParam("login").isPresent()) {
-
-                content = setTextToElement(content,
-                        "login",
-                        "Принят логин: %s"
+                content = setTextToElement(content, "login", "Принят логин: %s"
                                 .formatted(request.getQueryParam("login").get()[0]));
             }
 
             if (request.getQueryParam("password").isPresent()) {
-                content = setTextToElement(content,
-                        "password",
-                        "Принят пароль: %s"
+                content = setTextToElement(content, "password", "Принят пароль: %s"
                                 .formatted(request.getQueryParam("password").get()[0]));
             }
 
@@ -80,7 +75,7 @@ public class Main {
             responseStream.flush();
         });
 
-        // обработчик пост-формы с "пост-формы" на главную
+        // обработчик пост-формы на главную
         server.addHandler("POST", "/index.html", (request, responseStream) -> {
             final var filePath = Path.of(".", server.getPublic_dir(), request.getPath());
             String content = Files.readString(filePath);
