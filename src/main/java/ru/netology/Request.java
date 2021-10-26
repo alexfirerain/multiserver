@@ -12,6 +12,11 @@ import java.util.*;
  * и значение лимита на длину запроса.
  */
 public class Request {
+    private static final int limit = 4096;
+    private static final byte[] REQUEST_LINE_DELIMITER = {'\r', '\n'};
+    private static final byte[] HEADERS_DELIMITER = {'\r', '\n', '\r', '\n'};
+    private static final String defaultPath = "/index.html";   // начальный путь
+
     private final String method;
     private final String originalPath;
     private final String path;
@@ -21,8 +26,7 @@ public class Request {
     private final Map<String, List<String>> postParams;
     private final List<MultiPartDatum> multiPartData;
 
-    private static final String defaultPath = "/index.html";   // начальный путь
-    private static final int limit = 4096;
+
 
     private Request(String method, String originalPath, String path,
                     Map<String, List<String>> queryParams, Map<String, String> headers,
@@ -90,9 +94,9 @@ public class Request {
         in.mark(limit);
         final var buffer = new byte[limit];
         final var read = in.read(buffer);
-        final var requestLineDelimiter = new byte[]{'\r', '\n'};
 
-        final var requestLineEnd = indexOf(buffer, requestLineDelimiter, 0, read);
+
+        final var requestLineEnd = indexOf(buffer, REQUEST_LINE_DELIMITER, 0, read);
 //        System.out.println("requestLineEnd = " + requestLineEnd + "\nbufferLength = " + read); // мониторинг
         if (requestLineEnd == -1 && read > 0) {
             throw new IOException("Invalid request");
@@ -117,11 +121,11 @@ public class Request {
         }
 
         // постановили окончатель заголовков
-        final var headersDelimiter = new byte[]{'\r', '\n', '\r', '\n'};
+
         // начало заголовков = конец строки + длина окончателя строки
-        final var headersStart = requestLineEnd + requestLineDelimiter.length;
+        final var headersStart = requestLineEnd + REQUEST_LINE_DELIMITER.length;
         // конец заголовков = где начинается окончатель заголовков
-        final var headersEnd = indexOf(buffer, headersDelimiter, headersStart, read);
+        final var headersEnd = indexOf(buffer, HEADERS_DELIMITER, headersStart, read);
         if (headersEnd == -1) {
             throw new IOException("Invalid request");
         }
@@ -147,7 +151,7 @@ public class Request {
         byte[] bodyBytes = new byte[0];
         if (!rqMethod.equals("GET")) {
             // промотали ввод на длину окончателя заголовков
-            in.skip(headersDelimiter.length);
+            in.skip(HEADERS_DELIMITER.length);
             // читаем значение заголовка длины содержимого
             final var contentLengthString = rqHeaders.get("Content-Length");
             // если такой заголовок есть
@@ -158,18 +162,40 @@ public class Request {
 
         final var body = new String(bodyBytes);
         Map<String, List<String>> rqPostParams = new HashMap<>();
-
-        var contentType = rqHeaders.get("Content-Type");
-        if (body.length() > 0 && contentType != null)
-            rqPostParams = paramStringToMap(body, contentType);
-
         List<MultiPartDatum> rqMultiPartData = new ArrayList<>();
 
+        var contentType = rqHeaders.get("Content-Type");
+        //если существует тело и тип содержимого
+        if (body.length() > 0 && contentType != null) {
+            // если не многочастный тип
+            if (!contentType.startsWith("multipart/form-data")){
+                // прочесть соответствующие типу параметры
+                rqPostParams = paramStringToMap(body, contentType);
+            // если же тип многочастный
+            } else {
+                // узнать разделитель
+                final var boundary = contentType.substring(contentType.indexOf("=") + 1).getBytes();
+                // текущая позиция в теле на конце разделителя
+                int cur = boundary.length;
+                // скопировать с текущей позиции по конец заголовков
+                var partHeaders = Arrays.copyOfRange(bodyBytes,
+                        cur, indexOf(bodyBytes, HEADERS_DELIMITER,
+                                cur, indexOf(bodyBytes, boundary,
+                                        cur, bodyBytes.length)));
 
 
 
 
-        // запрос с разобранным x-www-form-urlencoded телом
+
+            }
+        }
+
+
+
+
+
+
+        // запрос с разобранным телом
         return new Request(rqMethod, rqOriginalPath, rqPath, rqQParams, rqHeaders, body, rqPostParams, rqMultiPartData);
     }
 
@@ -312,7 +338,7 @@ public class Request {
 
     // from google guava with modifications
     /**
-     * Находит в указанном массиве, с какого индекса начинается указанная последовательность.
+     * Находит в указанном массиве, с какого индекса начинается (в первый раз) указанная последовательность.
      * @param array  указанный массив.
      * @param target указанная последовательность.
      * @param start  с какого индекса в массиве искать.
