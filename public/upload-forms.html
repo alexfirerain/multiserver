@@ -8,8 +8,10 @@
   <title>Document</title>
 </head>
 <body>
-  <form action="http://localhost:9999?value=get-value" method="post" enctype="multipart/form-data">
-      <p><input placeholder="Просто окошко"><br/></p> <!-- without name - никуда не отправится -->
+  <form action="http://localhost:9999" method="post" enctype="multipart/form-data">
+      <p><label>Форма
+          <input placeholder="Просто окошко">
+      </label><br/></p> <!-- without name - никуда не отправится -->
       <p><input name="title" placeholder="Название"><br/></p>
       <p><input name="value" placeholder="Значение"><br/></p>
       <p><input name="value" placeholder="Значение"><br/></p><!-- специально два поля с одним name -->

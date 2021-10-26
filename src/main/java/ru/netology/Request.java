@@ -13,7 +13,7 @@ import java.util.*;
  */
 public class Request {
     private static final int limit = 4096;
-    private static final byte[] REQUEST_LINE_DELIMITER = {'\r', '\n'};
+    private static final byte[] LINE_DELIMITER = {'\r', '\n'};
     private static final byte[] HEADERS_DELIMITER = {'\r', '\n', '\r', '\n'};
     private static final String defaultPath = "/index.html";   // начальный путь
 
@@ -95,8 +95,7 @@ public class Request {
         final var buffer = new byte[limit];
         final var read = in.read(buffer);
 
-
-        final var requestLineEnd = indexOf(buffer, REQUEST_LINE_DELIMITER, 0, read);
+        final var requestLineEnd = indexOf(buffer, LINE_DELIMITER, 0, read);
 //        System.out.println("requestLineEnd = " + requestLineEnd + "\nbufferLength = " + read); // мониторинг
         if (requestLineEnd == -1 && read > 0) {
             throw new IOException("Invalid request");
@@ -120,10 +119,8 @@ public class Request {
             rqQParams = paramStringToMap(queryString, "application/x-www-form-urlencoded");
         }
 
-        // постановили окончатель заголовков
-
         // начало заголовков = конец строки + длина окончателя строки
-        final var headersStart = requestLineEnd + REQUEST_LINE_DELIMITER.length;
+        final var headersStart = requestLineEnd + LINE_DELIMITER.length;
         // конец заголовков = где начинается окончатель заголовков
         final var headersEnd = indexOf(buffer, HEADERS_DELIMITER, headersStart, read);
         if (headersEnd == -1) {
@@ -161,12 +158,16 @@ public class Request {
         }
 
         final var body = new String(bodyBytes);
+
+//        System.out.println(body);
+
         Map<String, List<String>> rqPostParams = new HashMap<>();
         List<MultiPartDatum> rqMultiPartData = new ArrayList<>();
 
         var contentType = rqHeaders.get("Content-Type");
-        //если существует тело и тип содержимого
-        if (body.length() > 0 && contentType != null) {
+        //если существуют тело и тип содержимого
+//        System.out.println(contentType);
+        if (bodyBytes.length > 0 && contentType != null) {
             // если не многочастный тип
             if (!contentType.startsWith("multipart/form-data")){
                 // прочесть соответствующие типу параметры
@@ -175,27 +176,28 @@ public class Request {
             } else {
                 // узнать разделитель
                 final var boundary = contentType.substring(contentType.indexOf("=") + 1).getBytes();
+//                System.out.println(Arrays.toString(boundary));
                 // текущая позиция в теле на конце разделителя
                 int cur = boundary.length;
-                // скопировать с текущей позиции по конец заголовков
-                var partHeaders = Arrays.copyOfRange(bodyBytes,
-                        cur, indexOf(bodyBytes, HEADERS_DELIMITER,
-                                cur, indexOf(bodyBytes, boundary,
-                                        cur, bodyBytes.length)));
 
-
-
-
-
+                while (cur < bodyBytes.length) {
+                    // постановили конец части
+                    var partEnd = indexOf(bodyBytes, boundary, cur, bodyBytes.length);
+                    // постановили конец заголовков части
+                    var partHeadersEnd = indexOf(bodyBytes, HEADERS_DELIMITER, cur, partEnd);
+                    // скопировать с текущей позиции по конец заголовков
+                    var partHeadersBytes = Arrays.copyOfRange(bodyBytes, cur, partHeadersEnd);
+                    // проматываем до начала тела части
+                    cur = partHeadersEnd + HEADERS_DELIMITER.length;
+                    // скопировали с текущей позиции по конец части
+                    var partBodyBytes = Arrays.copyOfRange(bodyBytes, cur, partEnd);
+                    // проматываем до начала следующей части
+                    cur = partEnd + boundary.length;
+                    // сохраняем заголовки и тело в новую часть
+                    rqMultiPartData.add(new MultiPartDatum(partHeadersBytes, partBodyBytes));
+                }
             }
         }
-
-
-
-
-
-
-        // запрос с разобранным телом
         return new Request(rqMethod, rqOriginalPath, rqPath, rqQParams, rqHeaders, body, rqPostParams, rqMultiPartData);
     }
 
