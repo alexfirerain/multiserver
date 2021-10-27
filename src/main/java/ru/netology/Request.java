@@ -157,16 +157,17 @@ public class Request {
                 bodyBytes = in.readNBytes(Integer.parseInt(contentLengthString));
         }
 
-        final var body = new String(bodyBytes);
-
-//        System.out.println(body);
+        final var body = new String(bodyBytes);         // потом едва ли будет нужно
 
         Map<String, List<String>> rqPostParams = new HashMap<>();
         List<MultiPartDatum> rqMultiPartData = new ArrayList<>();
 
         var contentType = rqHeaders.get("Content-Type");
+
+        System.out.printf("Запрос к %s типа %s%n", rqPath, contentType);                // мониторинг
+        System.out.printf("[%s]%n", body);                                              // мониторинг
+
         //если существуют тело и тип содержимого
-//        System.out.println(contentType);
         if (bodyBytes.length > 0 && contentType != null) {
             // если не многочастный тип
             if (!contentType.startsWith("multipart/form-data")){
@@ -176,25 +177,41 @@ public class Request {
             } else {
                 // узнать разделитель
                 final var boundary = contentType.substring(contentType.indexOf("=") + 1).getBytes();
-//                System.out.println(Arrays.toString(boundary));
+
+//                System.out.println("Разделитель: " + new String(boundary)); // мониторинг
+
                 // текущая позиция в теле на конце разделителя
                 int cur = boundary.length;
+
+                System.out.println("Указатель на " + cur);              // мониторинг
 
                 while (cur < bodyBytes.length) {
                     // постановили конец части
                     var partEnd = indexOf(bodyBytes, boundary, cur, bodyBytes.length);
+                    System.out.printf("Часть кончается на %d из %d%n", partEnd, bodyBytes.length); // мониторинг
+
                     // постановили конец заголовков части
                     var partHeadersEnd = indexOf(bodyBytes, HEADERS_DELIMITER, cur, partEnd);
                     // скопировать с текущей позиции по конец заголовков
-                    var partHeadersBytes = Arrays.copyOfRange(bodyBytes, cur, partHeadersEnd);
+                    var headersArea = Arrays.copyOfRange(bodyBytes, cur, partHeadersEnd);
+
+                    System.out.println("Заголовки кончаются на " + partEnd); // мониторинг
+                    System.out.println(new String(headersArea));           // монито
+
                     // проматываем до начала тела части
                     cur = partHeadersEnd + HEADERS_DELIMITER.length;
+
                     // скопировали с текущей позиции по конец части
-                    var partBodyBytes = Arrays.copyOfRange(bodyBytes, cur, partEnd);
+                    var bodyArea = Arrays.copyOfRange(bodyBytes, cur, partEnd);
+
                     // проматываем до начала следующей части
                     cur = partEnd + boundary.length;
+
+                    System.out.println("Указатель в конце на " + cur); // мониторинг
+                    System.out.println(new String(bodyArea));      // монито
+
                     // сохраняем заголовки и тело в новую часть
-                    rqMultiPartData.add(new MultiPartDatum(partHeadersBytes, partBodyBytes));
+                    rqMultiPartData.add(new MultiPartDatum(headersArea, bodyArea));
                 }
             }
         }

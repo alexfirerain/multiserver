@@ -17,19 +17,25 @@ public class MultiPartDatum {
     }
 
     public MultiPartDatum(byte[] partHeaders, byte[] partBody) {
+        System.out.println("Вошли в конструктор части");        // мониторинг
+
         var headerLines = (new String(partHeaders)).split("\r\n");
-        Map<String, String> headers = new HashMap<>();
+
+        Arrays.stream(headerLines).forEach(System.out::println); // мониторинг
+
+        Map<String, String> headerSlices = new HashMap<>();
 
         for (String line : headerLines) {
             int delimiter = line.indexOf(":");
+            if (delimiter == -1) continue;
             var headerName = line.substring(0, delimiter);
             var headerValue = line.substring(delimiter + 2);
-            headers.put(headerName, headerValue);
+            headerSlices.put(headerName, headerValue);
         }
-        this.headers = headers;
+        headers = headerSlices;
         body = partBody;
 
-        System.out.println("MPD: " + Arrays.toString(body));
+        System.out.println("MPD: " + new String(body));
 
     }
 
