@@ -1,6 +1,8 @@
 package ru.netology;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -176,7 +178,13 @@ public class Request {
             // если же тип многочастный
             } else {
                 // узнать разделитель
-                final var boundary = contentType.substring(contentType.indexOf("=") + 1).getBytes();
+                final var boundaryString = contentType.substring(contentType.indexOf("=") + 1).getBytes();
+                byte[] pre = {'-', '-'};
+                byte[] boundary = new byte[pre.length + boundaryString.length];
+                System.arraycopy(pre, 0, boundary, 0, pre.length);
+                System.arraycopy(boundaryString, 0, boundary, pre.length, boundaryString.length);
+
+
 
 //                System.out.println("Разделитель: " + new String(boundary)); // мониторинг
 
@@ -185,24 +193,31 @@ public class Request {
 
                 System.out.println("Указатель на " + cur);              // мониторинг
 
-                while (cur < bodyBytes.length) {
+                while (cur < bodyBytes.length) {            // обновить условие ← ↓
+                    // если следом за разделителем не перевод строки
+                    if (!Arrays.equals(new byte[]{bodyBytes[cur], bodyBytes[cur + 1]}, LINE_DELIMITER)) {
+                        // значит это конец последней части
+                        break;
+                    }
+                    // проматываем перевод строки
+                    cur += 2;
                     // постановили конец части
                     var partEnd = indexOf(bodyBytes, boundary, cur, bodyBytes.length);
                     System.out.printf("Часть кончается на %d из %d%n", partEnd, bodyBytes.length); // мониторинг
 
                     // постановили конец заголовков части
-                    var partHeadersEnd = indexOf(bodyBytes, HEADERS_DELIMITER, cur, partEnd);
+                    var headersAreaEnd = indexOf(bodyBytes, HEADERS_DELIMITER, cur, partEnd);
                     // скопировать с текущей позиции по конец заголовков
-                    var headersArea = Arrays.copyOfRange(bodyBytes, cur, partHeadersEnd);
+                    var headersArea = Arrays.copyOfRange(bodyBytes, cur, headersAreaEnd);
 
-                    System.out.println("Заголовки кончаются на " + partEnd); // мониторинг
+                    System.out.println("Заголовки кончаются на " + headersAreaEnd); // мониторинг
                     System.out.println(new String(headersArea));           // монито
 
                     // проматываем до начала тела части
-                    cur = partHeadersEnd + HEADERS_DELIMITER.length;
+                    cur = headersAreaEnd + HEADERS_DELIMITER.length;
 
                     // скопировали с текущей позиции по конец части
-                    var bodyArea = Arrays.copyOfRange(bodyBytes, cur, partEnd);
+                    var bodyArea = Arrays.copyOfRange(bodyBytes, cur, partEnd - 2);
 
                     // проматываем до начала следующей части
                     cur = partEnd + boundary.length;
@@ -460,6 +475,21 @@ public class Request {
     public boolean isMultipart() {
         var contentType = getHeader("Content-Type");
         return contentType.isPresent() && contentType.get().startsWith("multipart/form-data");
+    }
+
+    /**
+     * Возвращает часть многочастного запроса по ея имени в форме.
+     * @param name  имя части в форме (как свойство заголовка Content-Dispositin)
+     * @return  часть запроса, соответствующую указанному имени в форме.
+     */
+    public MultiPartDatum getFormDatumByName(String name) {
+        if (!isMultipart()) return null;
+        for (MultiPartDatum part : multiPartData) {
+            Optional<String> formName = part.formDataName();
+            if (formName.isPresent() && name.equals(formName.get()))
+                return part;
+        }
+        return null;
     }
 
 
