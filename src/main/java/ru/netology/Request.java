@@ -178,8 +178,8 @@ public class Request {
             // если же тип многочастный
             } else {
                 // узнать разделитель
+                final var pre = new byte[]{'-', '-'};
                 final var boundaryString = contentType.substring(contentType.indexOf("=") + 1).getBytes();
-                byte[] pre = {'-', '-'};
                 byte[] boundary = new byte[pre.length + boundaryString.length];
                 System.arraycopy(pre, 0, boundary, 0, pre.length);
                 System.arraycopy(boundaryString, 0, boundary, pre.length, boundaryString.length);
@@ -243,30 +243,24 @@ public class Request {
     private static Map<String, List<String>> paramStringToMap(String material, String encType) {
         Map<String, List<String>> map = new HashMap<>();
 
-        switch (encType) {
-
-            case "application/x-www-form-urlencoded":
-                for (String line : material.split("&")) {
-                    int delimiterIndex = line.indexOf("=");
-                    String name = URLDecoder.decode(line.substring(0, delimiterIndex), StandardCharsets.UTF_8);
-                    String value = URLDecoder.decode(line.substring(delimiterIndex + 1), StandardCharsets.UTF_8);
-                    map.putIfAbsent(name, new ArrayList<>());
-                    map.get(name).add(value);
-                }
-                break;
-
-            case "text/plain":
-                for (String line : material.split("\r\n")) {
-                    int delimiterIndex = line.indexOf("=");
-                    String name = line.substring(0, delimiterIndex);
-                    String value = line.substring(delimiterIndex + 1);
-                    map.putIfAbsent(name, new ArrayList<>());
-                    map.get(name).add(value);
-                }
-                break;
+        if ("application/x-www-form-urlencoded".equals(encType)) {
+            for (String line : material.split("&")) {
+                int delimiterIndex = line.indexOf("=");
+                String name = URLDecoder.decode(line.substring(0, delimiterIndex), StandardCharsets.UTF_8);
+                String value = URLDecoder.decode(line.substring(delimiterIndex + 1), StandardCharsets.UTF_8);
+                map.putIfAbsent(name, new ArrayList<>());
+                map.get(name).add(value);
+            }
+        } else if ("text/plain".equals(encType)) {
+            for (String line : material.split("\r\n")) {
+                int delimiterIndex = line.indexOf("=");
+                String name = line.substring(0, delimiterIndex);
+                String value = line.substring(delimiterIndex + 1);
+                map.putIfAbsent(name, new ArrayList<>());
+                map.get(name).add(value);
+            }
 
             // TODO: разбор многочастного запроса.
-
         }
         return map;
     }
@@ -479,8 +473,8 @@ public class Request {
 
     /**
      * Возвращает часть многочастного запроса по ея имени в форме.
-     * @param name  имя части в форме (как свойство заголовка Content-Dispositin)
-     * @return  часть запроса, соответствующую указанному имени в форме.
+     * @param name  имя части в форме (как свойство заголовка Content-Disposition)
+     * @return  часть запроса, соответствующую указанному имени в форме, или null.
      */
     public MultiPartDatum getFormDatumByName(String name) {
         if (!isMultipart()) return null;

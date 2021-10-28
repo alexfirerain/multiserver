@@ -2,6 +2,7 @@ package ru.netology;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -91,8 +92,8 @@ public class MultiPartDatum {
                 Optional.empty() :
                 Optional.of(headers.get(name));
     }
-    public void saveBodyToFile(String filePath) throws IOException {
-        try (FileOutputStream fos = new FileOutputStream(filePath)) {
+    public void saveBodyToFile(Path filePath) throws IOException {
+        try (FileOutputStream fos = new FileOutputStream(filePath.toFile())) {
             fos.write(body, 0, body.length);
         }
 
@@ -112,8 +113,8 @@ public class MultiPartDatum {
                 Optional.of(headers.get("Content-Type"));
     }
 
-    public boolean isEmpty() {
-        return body.length == 0;
+    public boolean hasBody() {
+        return body.length > 0;
     }
 
     private Optional<String> extractDispositionProperty(String propertyName) {

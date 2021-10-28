@@ -208,7 +208,7 @@ public class Server extends Thread {
      * @param out   кому слать.
      * @throws IOException при невозможности отослать.
      */
-    private void notFoundResponse(OutputStream out) throws IOException {
+    protected void notFoundResponse(OutputStream out) throws IOException {
         out.write(("""
                 HTTP/1.1 404 Not Found\r
                 Content-Length: 0\r
@@ -223,7 +223,7 @@ public class Server extends Thread {
      * @param out   куда отсылать ответ.
      * @throws IOException при невозможности нормально отослать.
      */
-    private static void badRequestResponse(OutputStream out) throws IOException {
+    protected void badRequestResponse(OutputStream out) throws IOException {
         out.write((
                 """
                         HTTP/1.1 400 Bad Request\r
@@ -240,7 +240,7 @@ public class Server extends Thread {
      * @param out   куда слать.
      * @throws IOException при невозможности отослать.
      */
-    private void notImplementedResponse(OutputStream out) throws IOException {
+    protected void notImplementedResponse(OutputStream out) throws IOException {
         out.write(("""
                 HTTP/1.1 501 Not Implemented\r
                 Content-Length: 0\r
@@ -255,7 +255,7 @@ public class Server extends Thread {
      * @param out   куда слать.
      * @throws IOException при невозможности отослать.
      */
-    private void serverErrorResponse(OutputStream out) throws IOException {
+    protected void serverErrorResponse(OutputStream out) throws IOException {
         out.write(("""
                 HTTP/1.1 500 Internal Server Error\r
                 Content-Length: 0\r

@@ -14,6 +14,7 @@ import java.util.Scanner;
 public class Main {
     public static final int POOL_SIZE = 64;
     public static final String PUBLIC_DIR = "public";
+    public static final String FILES_DIR = "files";
     public static final int SERVER_PORT = 9999;
 
     public static void main(String[] args) {
@@ -115,6 +116,28 @@ public class Main {
                     .getBytes());
             responseStream.write(content.getBytes());
             responseStream.flush();
+        });
+
+        // обработчик многочастного запроса на "upload"
+        server.addHandler(Server.POST, "/upload-forms.html", (request, responseStream) -> {
+            if(!request.isMultipart()) {
+                server.badRequestResponse(responseStream);
+            }
+            final var filePath = Path.of(".", server.getPublic_dir(), request.getPath());
+            String content = Files.readString(filePath);
+            MultiPartDatum image = request.getFormDatumByName("image");
+
+            if (image != null && image.hasBody()) {
+                var filename = image.formDataFilename();
+                image.saveBodyToFile(Path.of(".", PUBLIC_DIR,
+                        "image" + (filename.map(s -> s.substring(s.indexOf("."))).orElse(""))
+                        ));
+            }
+
+            Document page = Jsoup.parse(content, "UTF-8");
+            Element target = page.getElementById("response");
+
+
         });
 
 
