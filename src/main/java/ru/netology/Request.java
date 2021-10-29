@@ -24,10 +24,9 @@ public class Request {
     private final String path;
     private final Map<String, List<String>> queryParams;
     private final Map<String, String> headers;
-    private final String body;
+    private final String body;                           // @Deprecated
     private final Map<String, List<String>> postParams;
     private final List<MultiPartDatum> multiPartData;
-
 
 
     private Request(String method, String originalPath, String path,
@@ -66,7 +65,7 @@ public class Request {
                     desc.append(query.getKey()).append(" = ").append(value).append("\n");
         }
 
-        if (!body.isBlank()) {
+        if (!body.isBlank() && !isMultipart()) {
             desc.append("\tТело:\n").append(body);
         }
 
@@ -121,24 +120,17 @@ public class Request {
             rqQParams = paramStringToMap(queryString, "application/x-www-form-urlencoded");
         }
 
-        // начало заголовков = конец строки + длина окончателя строки
         final var headersStart = requestLineEnd + LINE_DELIMITER.length;
-        // конец заголовков = где начинается окончатель заголовков
         final var headersEnd = indexOf(buffer, HEADERS_DELIMITER, headersStart, read);
         if (headersEnd == -1) {
             throw new IOException("Invalid request");
         }
-        // вернулись читать с начала ввода
         in.reset();
-        // промотали до начала заголовков
         in.skip(headersStart);
-        // байты заголовков = байты отсюда до (длины заголовков)
         final var headersBytes = in.readNBytes(headersEnd - headersStart);
 
-        // трактуем байты заголовков как строку и нарезаем по меткам конца строк на массив
         final var headerPairs = new String(headersBytes).split("\r\n");
         Map<String, String> rqHeaders = new HashMap<>();
-        // каждую строку разбиваем по двоеточию и картируем
         for (String line : headerPairs) {
             var i = line.indexOf(":");
             var headerName = line.substring(0, i);
@@ -149,13 +141,9 @@ public class Request {
         // читаем тело
         byte[] bodyBytes = new byte[0];
         if (!rqMethod.equals("GET")) {
-            // промотали ввод на длину окончателя заголовков
             in.skip(HEADERS_DELIMITER.length);
-            // читаем значение заголовка длины содержимого
             final var contentLengthString = rqHeaders.get("Content-Length");
-            // если такой заголовок есть
             if (contentLengthString != null)
-                // байты тела = столько байтов отсюда, как указано в нём
                 bodyBytes = in.readNBytes(Integer.parseInt(contentLengthString));
         }
 
@@ -167,13 +155,17 @@ public class Request {
         var contentType = rqHeaders.get("Content-Type");
 
         System.out.printf("Запрос к %s типа %s%n", rqPath, contentType);                // мониторинг
-        System.out.printf("[%s]%n", body);                                              // мониторинг
+//        System.out.printf("[%s]%n", body);                                              // мониторинг
 
         //если существуют тело и тип содержимого
         if (bodyBytes.length > 0 && contentType != null) {
-            // если не многочастный тип
+
+            // если тип не многочастный
             if (!contentType.startsWith("multipart/form-data")){
+                // читаем из тела параметры
                 rqPostParams = paramStringToMap(body, contentType);
+
+            // если тип многочастный
             } else {
                 // узнать разделитель
                 final var pre = new byte[]{'-', '-'};
@@ -182,16 +174,10 @@ public class Request {
                 System.arraycopy(pre, 0, boundary, 0, pre.length);
                 System.arraycopy(boundaryString, 0, boundary, pre.length, boundaryString.length);
 
-
-
-//                System.out.println("Разделитель: " + new String(boundary)); // мониторинг
-
                 // текущая позиция в теле на конце разделителя
                 int cur = boundary.length;
 
-                System.out.println("Указатель на " + cur);              // мониторинг
-
-                while (cur < bodyBytes.length) {            // обновить условие ← ↓
+                while (cur < bodyBytes.length) {            // обновить условие ← ↓ ?
                     // если следом за разделителем не перевод строки
                     if (!Arrays.equals(new byte[]{bodyBytes[cur], bodyBytes[cur + 1]}, LINE_DELIMITER)) {
                         // значит это конец последней части
@@ -199,29 +185,21 @@ public class Request {
                     }
                     // проматываем перевод строки
                     cur += 2;
-                    // постановили конец части
+                    // конец части:
                     var partEnd = indexOf(bodyBytes, boundary, cur, bodyBytes.length);
-//                    System.out.printf("Часть кончается на %d из %d%n", partEnd, bodyBytes.length); // мониторинг
-
-                    // постановили конец заголовков части
+                    // конец заголовков части:
                     var headersAreaEnd = indexOf(bodyBytes, HEADERS_DELIMITER, cur, partEnd);
                     // скопировать с текущей позиции по конец заголовков
                     var headersArea = Arrays.copyOfRange(bodyBytes, cur, headersAreaEnd);
 
-//                    System.out.println("Заголовки кончаются на " + headersAreaEnd); // мониторинг
-//                    System.out.println(new String(headersArea));           // монито
-
                     // проматываем до начала тела части
                     cur = headersAreaEnd + HEADERS_DELIMITER.length;
 
-                    // скопировали с текущей позиции по конец части
+                    // копируем с текущей позиции по конец части (без финального перевода строки)
                     var bodyArea = Arrays.copyOfRange(bodyBytes, cur, partEnd - 2);
 
                     // проматываем до начала следующей части
                     cur = partEnd + boundary.length;
-
-//                    System.out.println("Указатель в конце на " + cur); // мониторинг
-//                    System.out.println(new String(bodyArea));      // монито
 
                     // сохраняем заголовки и тело в новую часть
                     rqMultiPartData.add(new MultiPartDatum(headersArea, bodyArea));
@@ -257,8 +235,6 @@ public class Request {
                 map.putIfAbsent(name, new ArrayList<>());
                 map.get(name).add(value);
             }
-
-            // TODO: разбор многочастного запроса.
         }
         return map;
     }
@@ -470,9 +446,25 @@ public class Request {
     }
 
     /**
-     * Возвращает часть многочастного запроса по ея имени в форме.
-     * @param name  имя части в форме (как свойство заголовка Content-Disposition)
-     * @return  часть запроса, соответствующую указанному имени в форме, или null.
+     * Возвращает список распозанных частей запроса.
+     * @return  значение поля multipartData.
+     */
+    public List<MultiPartDatum> getMultiPartData() {
+        return multiPartData;
+    }
+
+    public Optional<MultiPartDatum[]> getMultiPartFormData(String name) {
+        if (multiPartData.isEmpty()) return Optional.empty();
+        var arr = multiPartData.stream()
+                .filter(x -> name.equals(x.formDataName().orElse("")))
+                .toArray(MultiPartDatum[]::new);
+        return arr.length > 0 ? Optional.of(arr) : Optional.empty();
+    }
+
+    /**
+     * Возвращает часть многочастного запроса по её имени в форме.
+     * @param name  имя части в форме (как свойство заголовка Content-Disposition).
+     * @return  первую найденную часть запроса, соответствующую указанному имени в форме, или null.
      */
     public MultiPartDatum getFormDatumByName(String name) {
         if (!isMultipart()) return null;

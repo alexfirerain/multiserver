@@ -14,7 +14,7 @@ import java.util.Scanner;
 public class Main {
     public static final int POOL_SIZE = 64;
     public static final String PUBLIC_DIR = "public";
-    public static final String FILES_DIR = "files";
+    public static final String FILES_DIR = "files";     // в настоящей реализации не используется
     public static final int SERVER_PORT = 9999;
 
     public static void main(String[] args) {
@@ -98,12 +98,16 @@ public class Main {
                         Element valueList = new Element("ul");
                         target.appendChild(valueList);
 
-                        for (String value : entry.getValue()) {
+                        for (String value : entry.getValue())
                             valueList.append("<li>%s</li>".formatted(value));
-                        }
                     }
                 }
                 content = page.html();
+                //TODO: Это просто чтобы страница передалась целиком ! требует решения!!
+                content += "DATA_TO_TRICK_JSOUP_BUG:0123456789abcdef_" +
+                        "0123456789abcdef0123456789abcdef_0123456789" +
+                        "0123456789abcdef0123456789abcdef_0123456789" +
+                        "0123456789abcdef0123456789abcde";
             }
             System.out.println(content);    // мониторинг
             responseStream.write("""
@@ -127,31 +131,52 @@ public class Main {
             String content = Files.readString(filePath);
             Document page = Jsoup.parse(content, "UTF-8");
 
-            Element target = page.getElementById("response");
+            Element answer = page.getElementById("response");
             Element imageHolder = page.getElementById("image-holder");
 
+            if(answer != null) {
+                List<MultiPartDatum> parts = request.getMultiPartData();
+                answer.append("Из формы получены значения:<br/>");
+                for (MultiPartDatum part : parts)
+                    if (part.isText() && part.formDataName().isPresent())
+                        answer.append(part.formDataName().get()).append(" = ")
+                                .append(part.getBodyString()).append("<br/>");
+            }
+
             MultiPartDatum image = request.getFormDatumByName("image");
-            MultiPartDatum title = request.getFormDatumByName("title");
-            MultiPartDatum value = request.getFormDatumByName("value");
-
-
             if (image != null && image.hasBody()) {
                 var filename = image.formDataFilename();
-                var savedFilename = "image" + filename.map(s -> s.substring(s.indexOf("."))).orElse("");
+                var savedFilename = "image" + filename.map(s -> s.substring(s.lastIndexOf("."))).orElse("");
 
                 image.saveBodyToFile(Path.of(".", PUBLIC_DIR, savedFilename));
 
                 if (imageHolder != null) {
                     imageHolder.appendChild(new Element("img").attr("src", savedFilename));
-                    imageHolder.prepend("Загружен файл: " + filename.orElse("без названия"));
+                    imageHolder.prepend("Загружен файл:" + filename.orElse("без названия") + "<br/>");
                 }
             }
             if (image == null && imageHolder != null) {
                 imageHolder.append("Файла не загружено.");
-
             }
 
+            content = page.html();
+            //TODO: Это просто чтобы страница передалась целиком ! требует решения!!
+            content += "DATA_TO_TRICK_JSOUP_BUG:0123456789abcdef_" +
+                    "0123456789abcdef0123456789abcdef_0123456789" +
+                    "0123456789abcdef0123456789abcdef_0123456789" +
+                    "0123456789abcdef0123456789abcde";
 
+            System.out.println(content);    // мониторинг
+            responseStream.write("""
+                    HTTP/1.1 200 OK\r
+                    Content-Type: %s\r
+                    Content-Length: %d\r
+                    Connection: close\r
+                    \r
+                    """.formatted(Files.probeContentType(filePath), content.length())
+                    .getBytes());
+            responseStream.write(content.getBytes());
+            responseStream.flush();
         });
 
 
