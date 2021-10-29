@@ -173,9 +173,7 @@ public class Request {
         if (bodyBytes.length > 0 && contentType != null) {
             // если не многочастный тип
             if (!contentType.startsWith("multipart/form-data")){
-                // прочесть соответствующие типу параметры
                 rqPostParams = paramStringToMap(body, contentType);
-            // если же тип многочастный
             } else {
                 // узнать разделитель
                 final var pre = new byte[]{'-', '-'};
@@ -203,15 +201,15 @@ public class Request {
                     cur += 2;
                     // постановили конец части
                     var partEnd = indexOf(bodyBytes, boundary, cur, bodyBytes.length);
-                    System.out.printf("Часть кончается на %d из %d%n", partEnd, bodyBytes.length); // мониторинг
+//                    System.out.printf("Часть кончается на %d из %d%n", partEnd, bodyBytes.length); // мониторинг
 
                     // постановили конец заголовков части
                     var headersAreaEnd = indexOf(bodyBytes, HEADERS_DELIMITER, cur, partEnd);
                     // скопировать с текущей позиции по конец заголовков
                     var headersArea = Arrays.copyOfRange(bodyBytes, cur, headersAreaEnd);
 
-                    System.out.println("Заголовки кончаются на " + headersAreaEnd); // мониторинг
-                    System.out.println(new String(headersArea));           // монито
+//                    System.out.println("Заголовки кончаются на " + headersAreaEnd); // мониторинг
+//                    System.out.println(new String(headersArea));           // монито
 
                     // проматываем до начала тела части
                     cur = headersAreaEnd + HEADERS_DELIMITER.length;
@@ -222,8 +220,8 @@ public class Request {
                     // проматываем до начала следующей части
                     cur = partEnd + boundary.length;
 
-                    System.out.println("Указатель в конце на " + cur); // мониторинг
-                    System.out.println(new String(bodyArea));      // монито
+//                    System.out.println("Указатель в конце на " + cur); // мониторинг
+//                    System.out.println(new String(bodyArea));      // монито
 
                     // сохраняем заголовки и тело в новую часть
                     rqMultiPartData.add(new MultiPartDatum(headersArea, bodyArea));

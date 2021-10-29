@@ -116,6 +116,14 @@ public class MultiPartDatum {
     public boolean hasBody() {
         return body.length > 0;
     }
+    public int bodySize() {
+        return body.length;
+    }
+
+    public boolean isText() {
+        return contentType().isEmpty() || contentType().get().startsWith("text/plain");
+    }
+
 
     private Optional<String> extractDispositionProperty(String propertyName) {
         String disposition = headers.get("Content-Disposition");

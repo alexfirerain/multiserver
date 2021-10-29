@@ -125,17 +125,31 @@ public class Main {
             }
             final var filePath = Path.of(".", server.getPublic_dir(), request.getPath());
             String content = Files.readString(filePath);
+            Document page = Jsoup.parse(content, "UTF-8");
+
+            Element target = page.getElementById("response");
+            Element imageHolder = page.getElementById("image-holder");
+
             MultiPartDatum image = request.getFormDatumByName("image");
+            MultiPartDatum title = request.getFormDatumByName("title");
+            MultiPartDatum value = request.getFormDatumByName("value");
+
 
             if (image != null && image.hasBody()) {
                 var filename = image.formDataFilename();
-                image.saveBodyToFile(Path.of(".", PUBLIC_DIR,
-                        "image" + (filename.map(s -> s.substring(s.indexOf("."))).orElse(""))
-                        ));
-            }
+                var savedFilename = "image" + filename.map(s -> s.substring(s.indexOf("."))).orElse("");
 
-            Document page = Jsoup.parse(content, "UTF-8");
-            Element target = page.getElementById("response");
+                image.saveBodyToFile(Path.of(".", PUBLIC_DIR, savedFilename));
+
+                if (imageHolder != null) {
+                    imageHolder.appendChild(new Element("img").attr("src", savedFilename));
+                    imageHolder.prepend("Загружен файл: " + filename.orElse("без названия"));
+                }
+            }
+            if (image == null && imageHolder != null) {
+                imageHolder.append("Файла не загружено.");
+
+            }
 
 
         });

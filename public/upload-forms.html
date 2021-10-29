@@ -12,12 +12,20 @@
       <p><label>Форма
           <input placeholder="Просто окошко">
       </label><br/></p> <!-- without name - никуда не отправится -->
-      <p><input name="title" placeholder="Название"><br/></p>
-      <p><input name="value" placeholder="Значение"><br/></p>
-      <p><input name="value" placeholder="Значение"><br/></p><!-- специально два поля с одним name -->
+      <p><label>Заголовок
+          <input name="title" placeholder="Название">
+      </label><br/></p>
+      <p><label>Первое
+          <input name="value" placeholder="Значение">
+      </label><br/></p>
+      <p><label>Второе
+          <input name="value" placeholder="Значение">
+      </label><br/></p><!-- специально два поля с одним name -->
       <p><input type="file" name="image"><br/></p> <!-- для отправки файлов -->
       <button>Send</button>
   </form>
+  <p id="response"></p>
+  <p id="image-holder"></p>
 </body>
 </html>
 
