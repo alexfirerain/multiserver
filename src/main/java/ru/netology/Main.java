@@ -201,7 +201,7 @@ public class Main {
      * @param text    вставляемый текст.
      * @return  html-документ с произведённой заменой.
      */
-    public static String setTextToElement(String content, String id, String text) {
+    private static String setTextToElement(String content, String id, String text) {
         Document doc = Jsoup.parse(content, "UTF-8");
         Element element = doc.getElementById(id);
         if (element != null) {
