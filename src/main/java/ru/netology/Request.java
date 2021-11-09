@@ -154,7 +154,7 @@ public class Request {
 
         var contentType = rqHeaders.get("Content-Type");
 
-        System.out.printf("Запрос к %s типа %s%n", rqPath, contentType);                // мониторинг
+//        System.out.printf("Запрос к %s типа %s%n", rqPath, contentType);                // мониторинг
 //        System.out.printf("[%s]%n", body);                                              // мониторинг
 
         //если существуют тело и тип содержимого
