@@ -1,10 +1,12 @@
 package ru.netology;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -13,13 +15,20 @@ import java.util.concurrent.Executors;
 /**
  * Слушает подключения и обрабатывает HTTP-запросы.
  */
-public class Server {
-    private String public_dir;
+public class Server extends Thread {
+    public static final String GET = "GET";
+    public static final String POST = "POST";
+    public static final List<String> allowedMethods = List.of(GET, POST);
+    private static final String HOSTNAME = "localhost";
+
     private final ExecutorService connections;
     /**
      * Библиотека обработчиков по методу и ресурсу.
      */
     private final Map<String, Map<String, Handler>> handlers = new ConcurrentHashMap<>();
+    private String public_dir;
+
+    private int server_port = 9999;         // на всякий значение по умолчанию
 
     /**
      * Создаёт новый Сервер с указанной степенью параллельности и значением публичной директории.
@@ -33,14 +42,27 @@ public class Server {
     }
 
     /**
+     * Создаёт новый Сервер с указанной степенью параллельностью и серверным портом,
+     * а также с указанной папкой ресурсов.
+     * @param poolSize     максимальное количество одновременно обрабатываемых потоков.
+     * @param public_dir   расположение папки с ресурсами.
+     * @param server_port  номер порта, на котором будет слушать.
+     */
+    public Server(int poolSize, String public_dir, int server_port) {
+        this.public_dir = public_dir;
+        connections = Executors.newFixedThreadPool(poolSize);
+        this.server_port = server_port;
+    }
+
+    /**
      * Начинает слушать входящие подключения на указанном порту.
      * В случае ошибки потока или соединения сообщает об этом в консоль.
      *
-     * @param port прослушиваемый порт.
      */
-    public void listen(int port) {
-        try (final var serverSocket = new ServerSocket(port)) {
-            while (true) {
+    @Override
+    public void run() {
+        try (final var serverSocket = new ServerSocket(server_port)) {
+            while (!interrupted()) {
                 final var socket = serverSocket.accept();
                 connections.submit(() -> handleConnection(socket));
             }
@@ -48,6 +70,7 @@ public class Server {
             System.out.println("Прослушивание порта завершилось: " + e.getMessage());
             e.printStackTrace();
         }
+            connections.shutdownNow();
     }
 
     /**
@@ -57,29 +80,33 @@ public class Server {
      * @param socket обрабатываемое подключение.
      */
     private void handleConnection(Socket socket) {
-//        System.out.println("HANDLING " + socket.getRemoteSocketAddress());
+        System.out.println("HANDLING " + socket.getRemoteSocketAddress());  // мониторинг
         try (socket;
              final var in = socket.getInputStream();
              final var out = socket.getOutputStream()) {
+
+
             final var request = Request.fromInputStream(in);
             final var method = request.getMethod();
             final var path = request.getPath();
 
             // запрос GET по неспецифицированному пути (поведение по умолчанию)
-            if ("GET".equals(method) && handlers.get(method).get(path) == null) {
+            if ("GET".equals(method) &&
+                    !isSpecified(method, path)) {
 
                 final var filePath = Path.of(".", public_dir, path);
 
                 if (Files.isRegularFile(filePath)) {
                     generalHandler.handle(request, out);
                 } else {
-                    notFoundHandler.handle(request, out);
+                    notFoundResponse(out);
                 }
             }
 
             // неизвестный метод
-            if (handlers.get(method) == null) {
-                notImplementedHandler.handle(request, out);
+            if (handlers.get(method) == null &&
+                    !isAllowed(method)) {
+                notImplementedResponse(out);
                 return;
             }
 
@@ -88,14 +115,63 @@ public class Server {
 
         } catch (IOException e) {
             try {
-                serverErrorHandler.handle(Request.DEFAULT, socket.getOutputStream());
+                System.out.println("HANDLE_ERROR");
+                e.printStackTrace();
+                if ("Invalid request".equals(e.getMessage())) {
+                    badRequestResponse(socket.getOutputStream());
+                } else {
+                    serverErrorResponse(socket.getOutputStream());
+                }
             } catch (IOException ex) {
                 System.out.println("ERROR_RESPONSE_ERROR");
                 ex.printStackTrace();
             }
-            System.out.println("HANDLE_ERROR");
-            e.printStackTrace();
         }
+    }
+
+    /**
+     * Стандартный обработчик ошибки сервера.
+     * @param out   куда слать.
+     * @throws IOException при невозможности отослать.
+     */
+    private void serverErrorResponse(OutputStream out) throws IOException {
+        out.write(("""
+                HTTP/1.1 500 Internal Server Error\r
+                Content-Length: 0\r
+                Connection: close\r
+                \r
+                """).getBytes());
+        out.flush();
+    }
+
+    /**
+     * Стандартный обработчик неимплементированного метода.
+     * @param out   куда слать.
+     * @throws IOException  при невозможности отослать.
+     */
+    private void notImplementedResponse(OutputStream out) throws IOException {
+        out.write(("""
+                HTTP/1.1 501 Not Implemented\r
+                Content-Length: 0\r
+                Connection: close\r
+                \r
+                """).getBytes());
+        out.flush();
+    }
+
+    /**
+     * Стандартный обработчик отсутствующего ресурса.
+     * @param out   кому слать.
+     * @throws IOException при невозможности отослать.
+     */
+    private void notFoundResponse(OutputStream out) throws IOException {
+        out.write(("""
+                HTTP/1.1 404 Not Found\r
+                Content-Length: 0\r
+                Connection: close\r
+                \r
+                """).getBytes());
+        out.flush();
     }
 
     /**
@@ -127,49 +203,50 @@ public class Server {
         handlers.get(method).put(path, handler);
     }
 
-    /**
-     * Стандартный обработчик отсутствующего ресурса.
-     */
-    public final Handler notFoundHandler = (request, responseStream) -> {
-        responseStream.write(("""
-                HTTP/1.1 404 Not Found\r
-                Content-Length: 0\r
-                Connection: close\r
-                \r
-                """).getBytes());
-        responseStream.flush();
-    };
 
     /**
-     * Стандартный обработчик неимплементированного метода.
+     * Стандартный обработчик некорректного запроса.
+     * @param out   куда отсылать ответ.
+     * @throws IOException при невозможности нормально отослать.
      */
-    private final Handler notImplementedHandler = (request, responseStream) -> {
-        responseStream.write(("""
-                HTTP/1.1 501 Not Implemented\r
-                Content-Length: 0\r
-                Connection: close\r
-                \r
-                """).getBytes());
-        responseStream.flush();
-    };
+    private static void badRequestResponse(OutputStream out) throws IOException {
+        out.write((
+                """
+                        HTTP/1.1 400 Bad Request\r
+                        Content-Length: 0\r
+                        Connection: close\r
+                        \r
+                        """
+        ).getBytes());
+        out.flush();
+    }
 
-    /**
-     * Стандартный обработчик ошибки сервера.
-     */
-    private final Handler serverErrorHandler = (request, responseStream) -> {
-        responseStream.write(("""
-                HTTP/1.1 500 Internal Server Error\r
-                Content-Length: 0\r
-                Connection: close\r
-                \r
-                """).getBytes());
-        responseStream.flush();
-    };
+    private boolean isSpecified(String method, String path) {
+        return handlers.get(method) != null &&
+                handlers.get(method).get(path) != null;
+    }
+
+    private boolean isAllowed(String method) {
+        return allowedMethods.contains(method);
+    }
 
     public String getPublic_dir() {
         return public_dir;
     }
 
+    public void setServer_port(int server_port) {
+        this.server_port = server_port;
+    }
+
+    public void stopServer() {
+        interrupt();
+        // виртуальное подключение к серверу, чтобы разблокировать его ожидание на порту
+        try {
+            new Socket(HOSTNAME, server_port).close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 }
 
 
