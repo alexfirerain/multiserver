@@ -8,14 +8,34 @@
   <title>Document</title>
 </head>
 <body>
-  <form action="http://localhost:9999?value=get-value" method="post" enctype="multipart/form-data">
-      <p><input placeholder="Просто окошко"><br/></p> <!-- without name - никуда не отправится -->
-      <p><input name="title" placeholder="Название"><br/></p>
-      <p><input name="value" placeholder="Значение"><br/></p>
-      <p><input name="value" placeholder="Значение"><br/></p><!-- специально два поля с одним name -->
+  <form method="post" enctype="multipart/form-data">
+      <p><label>Форма
+          <input placeholder="Просто окошко">
+      </label><br/></p> <!-- without name - никуда не отправится -->
+      <p><label>Заголовок
+          <input name="title" placeholder="Название">
+      </label><br/></p>
+      <p><label>Первое
+          <input name="value" placeholder="Значение">
+      </label><br/></p>
+      <p><label>Второе
+          <input name="value" placeholder="Значение">
+      </label><br/></p><!-- специально два поля с одним name -->
       <p><input type="file" name="image"><br/></p> <!-- для отправки файлов -->
       <button>Send</button>
   </form>
+  <p id="image-holder"></p>
+  <p id="response"></p>
+  <ul type="circle">
+      <li><a href="index.html">index</a></li>
+      <li><a href="classic.html">classic</a></li>
+      <li><a href="events.html">events</a></li>
+      <li><a href="links.html">links</a></li>
+      <li><a href="resources.html">resources</a></li>
+      <li><a href="forms.html">forms</a></li>
+      <li><a href="post-forms.html">POST-forms</a></li>
+      <li><a href="upload-forms.html">upload</a></li>
+  </ul>
 </body>
 </html>
 
