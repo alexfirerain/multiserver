@@ -20,8 +20,6 @@ public class MultiPartDatum {
     public MultiPartDatum(byte[] headersArea, byte[] bodyArea) {
         var headerLines = (new String(headersArea)).split("\r\n");
 
-//        Arrays.stream(headerLines).forEach(System.out::println); // мониторинг
-
         Map<String, String> headerSlices = new HashMap<>();
         for (String line : headerLines) {
             int delimiter = line.indexOf(":");
@@ -46,7 +44,7 @@ public class MultiPartDatum {
 
         body = bodyArea;
 
-        System.out.println(this);       // мониторинг
+//        System.out.println(this);       // мониторинг
     }
 
     @Override
@@ -113,9 +111,7 @@ public class MultiPartDatum {
      * @return  опциональ со значением, соответствующим заголовку, если такой найден.
      */
     public Optional<String> getHeader(String name) {
-        return headers.get(name) == null ?
-                Optional.empty() :
-                Optional.of(headers.get(name));
+        return Optional.ofNullable(headers.get(name));
     }
 
     /**

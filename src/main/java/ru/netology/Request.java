@@ -376,7 +376,7 @@ public class Request {
         return queryParams != null && !queryParams.isEmpty();
     }
     /**
-     * Сообщает, распознаны ли в параметры запроса теле.
+     * Сообщает, распознаны ли параметры запроса в теле.
      * @return {@code true}, если хотя бы один пост-параметр опознан.
      */
     private boolean hasPostParams() {
@@ -453,6 +453,12 @@ public class Request {
         return multiPartData;
     }
 
+    /**
+     * Возвращает опционально массив частей многочастного запроса,
+     * соответствующих запрошенному имени в форме.
+     * @param name имя элемента формы, которым должны обладать найденные части.
+     * @return массив типа <многочастное данное>, каждый элемент которого имеет в форме искомое имя.
+     */
     public Optional<MultiPartDatum[]> getMultiPartFormData(String name) {
         if (multiPartData.isEmpty()) return Optional.empty();
         var arr = multiPartData.stream()
@@ -470,7 +476,7 @@ public class Request {
         if (!isMultipart()) return null;
         for (MultiPartDatum part : multiPartData) {
             Optional<String> formName = part.formDataName();
-            if (formName.isPresent() && name.equals(formName.get()))
+            if (formName.isPresent() && formName.get().equals(name))
                 return part;
         }
         return null;
